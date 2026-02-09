@@ -2,10 +2,11 @@
 #include <iostream>
 
 #include <authbox.hpp>
-#include <pki/key_utils.hpp>
+#include <keylock/crypto/context.hpp>
 
 int main() {
-    auto keypair = authbox::pik::generate_ed25519_keypair();
+    keylock::crypto::Context ctx(keylock::crypto::Context::Algorithm::Ed25519);
+    auto keypair = ctx.generate_keypair();
     if (keypair.public_key.size() != 32U) {
         std::cerr << "Unexpected Ed25519 public key size\n";
         return 1;

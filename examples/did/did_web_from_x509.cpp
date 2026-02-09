@@ -3,13 +3,14 @@
 #include <optional>
 
 #include <authbox.hpp>
+#include <keylock/crypto/context.hpp>
 #include <pki/builder.hpp>
-#include <pki/key_utils.hpp>
 
 int main() {
     const std::string did_uri = "did:web:example.com";
 
-    auto keypair = authbox::pik::generate_ed25519_keypair();
+    keylock::crypto::Context ctx(keylock::crypto::Context::Algorithm::Ed25519);
+    auto keypair = ctx.generate_keypair();
     authbox::pik::CertificateBuilder builder;
     const auto now = std::chrono::system_clock::now();
 
