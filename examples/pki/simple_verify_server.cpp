@@ -12,10 +12,10 @@
  */
 
 #include <iostream>
-#include <pki/builder.hpp>
 #include <keylock/crypto/rng/randombytes.hpp>
 #include <keylock/crypto/sign_ed25519/ed25519.hpp>
 #include <keylock/keylock.hpp>
+#include <pki/builder.hpp>
 #include <pki/verify/server.hpp>
 
 int main() {
@@ -49,8 +49,7 @@ int main() {
     keylock::crypto::Context ctx(keylock::crypto::Context::Algorithm::Ed25519);
     auto keys = ctx.generate_keypair();
 
-    auto dn_result =
-        authbox::pik::DistinguishedName::from_string("CN=Test Certificate,O=Example Organization");
+    auto dn_result = authbox::pik::DistinguishedName::from_string("CN=Test Certificate,O=Example Organization");
     if (!dn_result.success) {
         std::cerr << "Failed to create DN: " << dn_result.error << "\n";
         return 1;

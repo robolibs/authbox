@@ -13,7 +13,7 @@
 #include "keylock/crypto/context.hpp"
 #include "keylock/hash/blake2b/blake2b.hpp"
 
-namespace keylock::io::key_exchange {
+namespace authbox::pki::key_exchange {
 
     using CryptoResult = keylock::crypto::Context::CryptoResult;
 
@@ -230,4 +230,8 @@ namespace keylock::io::key_exchange {
         return consume_envelope(src, size, recipient_private_key, associated_data_out);
     }
 
-} // namespace keylock::io::key_exchange
+} // namespace authbox::pki::key_exchange
+
+namespace keylock::io {
+    namespace key_exchange = authbox::pki::key_exchange;
+}

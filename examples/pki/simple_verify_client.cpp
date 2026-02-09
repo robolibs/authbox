@@ -9,8 +9,8 @@
  */
 
 #include <iostream>
-#include <pki/builder.hpp>
 #include <keylock/keylock.hpp>
+#include <pki/builder.hpp>
 #include <pki/verify/direct_transport.hpp>
 
 int main() {
@@ -47,8 +47,9 @@ int main() {
     auto not_after = not_before + std::chrono::hours(24 * 365); // 1 year
 
     authbox::pik::CertificateBuilder builder;
-    builder.set_version(3)     // v3 required for extensions
-        .set_serial(12345)     // Use a serial that's not in the revocation list
+    builder
+        .set_version(3)    // v3 required for extensions
+        .set_serial(12345) // Use a serial that's not in the revocation list
         .set_subject(dn_result.value)
         .set_issuer(dn_result.value)
         .set_validity(not_before, not_after)
@@ -129,8 +130,9 @@ int main() {
     std::cout << "Creating certificate with serial number in revocation list...\n";
 
     authbox::pik::CertificateBuilder revoked_builder;
-    revoked_builder.set_version(3)                              // v3 required for extensions
-        .set_serial({0x01, 0x02, 0x03, 0x04, 0x05})             // This serial is revoked
+    revoked_builder
+        .set_version(3)                             // v3 required for extensions
+        .set_serial({0x01, 0x02, 0x03, 0x04, 0x05}) // This serial is revoked
         .set_subject(dn_result.value)
         .set_issuer(dn_result.value)
         .set_validity(not_before, not_after)

@@ -67,7 +67,7 @@ namespace authbox::pik {
         }
 
         static inline CertificateResult<TrustStore> load_from_file(const std::string &path) {
-            auto file = keylock::io::read_binary(path);
+            auto file = authbox::io::read_binary(path);
             if (!file.success) {
                 return CertificateResult<TrustStore>::failure(file.error_message);
             }

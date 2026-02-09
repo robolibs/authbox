@@ -620,7 +620,7 @@ namespace authbox::pik {
     }
 
     inline CertificateResult<Crl> load_crl(const std::string &path) {
-        auto file = keylock::io::read_binary(path);
+        auto file = authbox::io::read_binary(path);
         if (!file.success) {
             return CertificateResult<Crl>::failure(file.error_message);
         }

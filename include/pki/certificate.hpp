@@ -620,7 +620,7 @@ namespace authbox::pik {
     }
 
     inline CertificateChainResult Certificate::load(const std::string &path, bool relaxed) {
-        auto file = keylock::io::read_binary(path);
+        auto file = authbox::io::read_binary(path);
         if (!file.success) {
             return CertificateChainResult::failure(file.error_message);
         }
@@ -642,12 +642,12 @@ namespace authbox::pik {
 
     inline bool Certificate::save(const std::string &path, CertificateFormat format) const {
         if (format == CertificateFormat::DER) {
-            return keylock::io::write_binary(der_, path);
+            return authbox::io::write_binary(der_, path);
         }
 
         const auto pem = to_pem();
         std::vector<uint8_t> pem_bytes(pem.begin(), pem.end());
-        return keylock::io::write_binary(pem_bytes, path);
+        return authbox::io::write_binary(pem_bytes, path);
     }
 
     inline CertificateSignatureResult Certificate::sign(const keylock::crypto::Context::KeyPair &issuer_key,

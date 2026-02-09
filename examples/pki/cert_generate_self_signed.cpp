@@ -7,9 +7,7 @@
 
 namespace {
 
-void announce(const std::string &path) {
-    std::cout << "Wrote PEM certificate to " << path << "\n";
-}
+    void announce(const std::string &path) { std::cout << "Wrote PEM certificate to " << path << "\n"; }
 
 } // namespace
 

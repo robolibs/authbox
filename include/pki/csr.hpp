@@ -97,7 +97,7 @@ namespace authbox::pik {
     }
 
     inline CertificateResult<CertificateRequest> load_csr(const std::string &path) {
-        auto file = keylock::io::read_binary(path);
+        auto file = authbox::io::read_binary(path);
         if (!file.success) {
             return CertificateResult<CertificateRequest>::failure(file.error_message);
         }
