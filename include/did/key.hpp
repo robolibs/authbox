@@ -54,7 +54,7 @@ namespace authbox::did {
 
         inline DidResult<std::vector<uint8_t>> base58btc_decode(std::string_view input) {
             if (input.empty()) {
-                return DidResult<std::vector<uint8_t>>::err(to_dp_string("Empty base58 string"));
+                return DidResult<std::vector<uint8_t>>::err(error::invalid_key_format("empty base58 string"));
             }
 
             size_t leading_ones = 0;
@@ -68,7 +68,7 @@ namespace authbox::did {
             for (char ch : input) {
                 const int val = base58_value(ch);
                 if (val < 0) {
-                    return DidResult<std::vector<uint8_t>>::err(to_dp_string("Invalid base58 character"));
+                    return DidResult<std::vector<uint8_t>>::err(error::invalid_key_format("invalid base58 character"));
                 }
 
                 int carry = val;
@@ -158,12 +158,13 @@ namespace authbox::did {
             return DidResult<DidKeyInfo>::err(parsed.error());
         }
         if (parsed.value().method != "key") {
-            return DidResult<DidKeyInfo>::err(to_dp_string("DID method must be key"));
+            return DidResult<DidKeyInfo>::err(error::invalid_method_id("method must be 'key'"));
         }
 
         const std::string_view method_id(parsed.value().method_id.data(), parsed.value().method_id.size());
         if (method_id.size() < 2 || method_id[0] != 'z') {
-            return DidResult<DidKeyInfo>::err(to_dp_string("did:key fingerprint must use multibase base58btc (z...)"));
+            return DidResult<DidKeyInfo>::err(
+                error::invalid_key_format("did:key fingerprint must use multibase base58btc (z...)"));
         }
 
         auto decoded = detail::base58btc_decode(method_id.substr(1));
@@ -171,7 +172,7 @@ namespace authbox::did {
             return DidResult<DidKeyInfo>::err(decoded.error());
         }
         if (decoded.value().size() < 34) {
-            return DidResult<DidKeyInfo>::err(to_dp_string("did:key multicodec payload too short"));
+            return DidResult<DidKeyInfo>::err(error::invalid_key_format("multicodec payload too short"));
         }
 
         DidKeyInfo out{};
@@ -185,12 +186,12 @@ namespace authbox::did {
         } else if (payload[0] == detail::MULTICODEC_X25519_PUB[0] && payload[1] == detail::MULTICODEC_X25519_PUB[1]) {
             out.type = DidKeyType::X25519;
         } else {
-            return DidResult<DidKeyInfo>::err(to_dp_string("Unsupported did:key multicodec prefix"));
+            return DidResult<DidKeyInfo>::err(error::unsupported_key_type("unsupported multicodec prefix"));
         }
 
         out.public_key.assign(payload.begin() + 2, payload.end());
         if (out.public_key.size() != 32U) {
-            return DidResult<DidKeyInfo>::err(to_dp_string("did:key public key must be 32 bytes"));
+            return DidResult<DidKeyInfo>::err(error::invalid_key_length(32, out.public_key.size()));
         }
 
         return DidResult<DidKeyInfo>::ok(std::move(out));

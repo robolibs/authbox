@@ -10,6 +10,7 @@
 #include "../json.hpp"
 
 #include "did.hpp"
+#include "options.hpp"
 
 namespace authbox::did {
 
@@ -24,7 +25,18 @@ namespace authbox::did {
         dp::String id;
         dp::String type;
         dp::String controller;
-        JsonWebKey public_key_jwk;
+        JsonWebKey public_key_jwk;          // Optional: for JWK-based methods
+        dp::String blockchain_account_id;   // Optional: for did:pkh and similar methods
+        bool has_jwk{false};                // True if public_key_jwk is populated
+        bool has_blockchain_account{false}; // True if blockchain_account_id is populated
+    };
+
+    // Service endpoint - can be a string, object, or array
+    // For simplicity, we store it as a raw JSON string
+    struct Service {
+        dp::String id;
+        dp::String type;
+        dp::String service_endpoint_json; // Raw JSON representation
     };
 
     struct DidDocument {
@@ -34,6 +46,7 @@ namespace authbox::did {
         std::vector<dp::String> authentication;
         std::vector<dp::String> assertion_method;
         std::vector<dp::String> key_agreement;
+        std::vector<Service> services;
     };
 
     namespace detail {
@@ -61,12 +74,11 @@ namespace authbox::did {
         inline DidResult<dp::String> parse_required_string_field(const json_object_t *obj, std::string_view key) {
             json_value_t *value = find_object_field(obj, key);
             if (!value) {
-                return DidResult<dp::String>::err(to_dp_string(std::string("Missing field: ") + std::string(key)));
+                return DidResult<dp::String>::err(error::missing_field(key));
             }
             const auto *text = json_value_as_string(value);
             if (!text) {
-                return DidResult<dp::String>::err(
-                    to_dp_string(std::string("Field is not a string: ") + std::string(key)));
+                return DidResult<dp::String>::err(error::field_not_string(key));
             }
             return DidResult<dp::String>::ok(to_dp_string(json_string_view(text)));
         }
@@ -89,6 +101,49 @@ namespace authbox::did {
                 out.push_back(to_dp_string(json_string_view(text)));
             }
             return out;
+        }
+
+        // Simple JSON value to string serialization (for serviceEndpoint)
+        inline std::string json_value_to_string(json_value_t *value) {
+            if (!value) {
+                return "null";
+            }
+
+            if (const auto *str = json_value_as_string(value)) {
+                return "\"" + std::string(json_string_view(str)) + "\"";
+            }
+
+            if (const auto *obj = json_value_as_object(value)) {
+                std::string result = "{";
+                bool first = true;
+                for (json_object_element_t *elem = obj->start; elem != nullptr; elem = elem->next) {
+                    if (!first) {
+                        result += ",";
+                    }
+                    first = false;
+                    result += "\"" + std::string(json_string_view(elem->name)) + "\":";
+                    result += json_value_to_string(elem->value);
+                }
+                result += "}";
+                return result;
+            }
+
+            if (const auto *arr = json_value_as_array(value)) {
+                std::string result = "[";
+                bool first = true;
+                for (json_array_element_t *elem = arr->start; elem != nullptr; elem = elem->next) {
+                    if (!first) {
+                        result += ",";
+                    }
+                    first = false;
+                    result += json_value_to_string(elem->value);
+                }
+                result += "]";
+                return result;
+            }
+
+            // For numbers and booleans, we'd need more logic, but for now just return a placeholder
+            return "null";
         }
 
         inline DidResult<JsonWebKey> parse_jwk(const json_object_t *obj) {
@@ -128,7 +183,7 @@ namespace authbox::did {
         json_value_t *root =
             json_parse_ex(json_text.data(), json_text.size(), json_parse_flags_default, nullptr, nullptr, &result);
         if (!root) {
-            return DidResult<DidDocument>::err(to_dp_string("Invalid DID document JSON"));
+            return DidResult<DidDocument>::err(error::invalid_document_json("parse failed"));
         }
 
         const auto cleanup = [&]() { std::free(root); };
@@ -136,7 +191,7 @@ namespace authbox::did {
         const auto *root_obj = json_value_as_object(root);
         if (!root_obj) {
             cleanup();
-            return DidResult<DidDocument>::err(to_dp_string("DID document root must be an object"));
+            return DidResult<DidDocument>::err(error::invalid_document_json("root must be an object"));
         }
 
         DidDocument out{};
@@ -160,7 +215,8 @@ namespace authbox::did {
         const auto *vm_array = json_value_as_array(vm_value);
         if (!vm_array || vm_array->length == 0U) {
             cleanup();
-            return DidResult<DidDocument>::err(to_dp_string("verificationMethod must be a non-empty array"));
+            return DidResult<DidDocument>::err(
+                error::invalid_document_json("verificationMethod must be a non-empty array"));
         }
 
         out.verification_methods.reserve(vm_array->length);
@@ -168,7 +224,7 @@ namespace authbox::did {
             const auto *vm_obj = json_value_as_object(elem->value);
             if (!vm_obj) {
                 cleanup();
-                return DidResult<DidDocument>::err(to_dp_string("verificationMethod entries must be objects"));
+                return DidResult<DidDocument>::err(error::invalid_verification_method("entries must be objects"));
             }
 
             VerificationMethod vm{};
@@ -177,24 +233,42 @@ namespace authbox::did {
             auto vm_controller = detail::parse_required_string_field(vm_obj, "controller");
             if (vm_id.is_err() || vm_type.is_err() || vm_controller.is_err()) {
                 cleanup();
-                return DidResult<DidDocument>::err(to_dp_string("Invalid verificationMethod entry"));
+                return DidResult<DidDocument>::err(error::invalid_verification_method("missing required fields"));
             }
 
             vm.id = vm_id.value();
             vm.type = vm_type.value();
             vm.controller = vm_controller.value();
 
+            // Try to parse publicKeyJwk (optional)
             const auto *jwk_obj = json_value_as_object(detail::find_object_field(vm_obj, "publicKeyJwk"));
-            if (!jwk_obj) {
-                cleanup();
-                return DidResult<DidDocument>::err(to_dp_string("verificationMethod.publicKeyJwk is required"));
+            if (jwk_obj) {
+                auto jwk = detail::parse_jwk(jwk_obj);
+                if (jwk.is_err()) {
+                    cleanup();
+                    return DidResult<DidDocument>::err(jwk.error());
+                }
+                vm.public_key_jwk = jwk.value();
+                vm.has_jwk = true;
             }
-            auto jwk = detail::parse_jwk(jwk_obj);
-            if (jwk.is_err()) {
-                cleanup();
-                return DidResult<DidDocument>::err(jwk.error());
+
+            // Try to parse blockchainAccountId (optional)
+            json_value_t *blockchain_acct = detail::find_object_field(vm_obj, "blockchainAccountId");
+            if (blockchain_acct) {
+                const auto *text = json_value_as_string(blockchain_acct);
+                if (text) {
+                    vm.blockchain_account_id = to_dp_string(detail::json_string_view(text));
+                    vm.has_blockchain_account = true;
+                }
             }
-            vm.public_key_jwk = jwk.value();
+
+            // At least one key representation must be present
+            if (!vm.has_jwk && !vm.has_blockchain_account) {
+                cleanup();
+                return DidResult<DidDocument>::err(
+                    error::invalid_verification_method("either publicKeyJwk or blockchainAccountId is required"));
+            }
+
             out.verification_methods.push_back(std::move(vm));
         }
 
@@ -202,24 +276,94 @@ namespace authbox::did {
         out.assertion_method = detail::parse_string_array(detail::find_object_field(root_obj, "assertionMethod"));
         out.key_agreement = detail::parse_string_array(detail::find_object_field(root_obj, "keyAgreement"));
 
+        // Parse services (optional)
+        json_value_t *service_value = detail::find_object_field(root_obj, "service");
+        if (service_value) {
+            const auto *service_array = json_value_as_array(service_value);
+            if (service_array) {
+                out.services.reserve(service_array->length);
+                for (json_array_element_t *elem = service_array->start; elem != nullptr; elem = elem->next) {
+                    const auto *service_obj = json_value_as_object(elem->value);
+                    if (!service_obj) {
+                        continue; // Skip invalid service entries
+                    }
+
+                    Service svc{};
+                    auto svc_id = detail::parse_required_string_field(service_obj, "id");
+                    auto svc_type = detail::parse_required_string_field(service_obj, "type");
+                    if (svc_id.is_err() || svc_type.is_err()) {
+                        continue; // Skip services with missing required fields
+                    }
+
+                    svc.id = svc_id.value();
+                    svc.type = svc_type.value();
+
+                    // Parse serviceEndpoint (can be string, object, or array)
+                    json_value_t *endpoint = detail::find_object_field(service_obj, "serviceEndpoint");
+                    if (endpoint) {
+                        svc.service_endpoint_json = to_dp_string(detail::json_value_to_string(endpoint));
+                    }
+
+                    out.services.push_back(std::move(svc));
+                }
+            }
+        }
+
         cleanup();
         return DidResult<DidDocument>::ok(std::move(out));
     }
 
+    // Parse DID document with policy enforcement
+    inline DidResult<DidDocument> parse_document_with_options(std::string_view json_text,
+                                                              const ResolveOptions &options) {
+        auto result = parse_document(json_text);
+        if (result.is_err()) {
+            return result;
+        }
+
+        const auto &doc = result.value();
+
+        // Enforce limits
+        if (doc.verification_methods.size() > options.max_verification_methods) {
+            return DidResult<DidDocument>::err(error::invalid_document_json(
+                "too many verification methods: " + std::to_string(doc.verification_methods.size()) +
+                " (max: " + std::to_string(options.max_verification_methods) + ")"));
+        }
+
+        if (doc.services.size() > options.max_services) {
+            return DidResult<DidDocument>::err(
+                error::invalid_document_json("too many services: " + std::to_string(doc.services.size()) +
+                                             " (max: " + std::to_string(options.max_services) + ")"));
+        }
+
+        if (doc.contexts.size() > options.max_context_entries) {
+            return DidResult<DidDocument>::err(
+                error::invalid_document_json("too many @context entries: " + std::to_string(doc.contexts.size()) +
+                                             " (max: " + std::to_string(options.max_context_entries) + ")"));
+        }
+
+        // Require verification method if policy demands it
+        if (options.require_verification_method && doc.verification_methods.empty()) {
+            return DidResult<DidDocument>::err(error::no_verification_methods());
+        }
+
+        return result;
+    }
+
     inline DidResult<bool> validate_document(const DidDocument &document, std::string_view expected_did_uri) {
-        if (std::string_view(document.id.data(), document.id.size()) != expected_did_uri) {
-            return DidResult<bool>::err(to_dp_string("DID document id mismatch"));
+        const std::string_view actual_id(document.id.data(), document.id.size());
+        if (actual_id != expected_did_uri) {
+            return DidResult<bool>::err(error::document_id_mismatch(expected_did_uri, actual_id));
         }
 
         if (document.verification_methods.empty()) {
-            return DidResult<bool>::err(to_dp_string("DID document has no verificationMethod"));
+            return DidResult<bool>::err(error::no_verification_methods());
         }
 
         bool has_relationship =
             !document.authentication.empty() || !document.assertion_method.empty() || !document.key_agreement.empty();
         if (!has_relationship) {
-            return DidResult<bool>::err(
-                to_dp_string("DID document requires authentication/assertionMethod/keyAgreement"));
+            return DidResult<bool>::err(error::no_verification_relationships());
         }
 
         return DidResult<bool>::ok(true);

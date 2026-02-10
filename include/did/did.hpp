@@ -8,12 +8,10 @@
 #include <vector>
 
 #include <datapod/datapod.hpp>
-#include <echo/echo.hpp>
+
+#include "errors.hpp"
 
 namespace authbox::did {
-
-    using DidError = dp::String;
-    template <typename T> using DidResult = dp::Result<T, DidError>;
 
     struct Did {
         dp::String uri;
@@ -27,8 +25,6 @@ namespace authbox::did {
         dp::String query;
         dp::String fragment;
     };
-
-    inline dp::String to_dp_string(std::string_view value) { return dp::String(value.data(), value.size()); }
 
     inline bool is_method_char(char ch) {
         return std::islower(static_cast<unsigned char>(ch)) || std::isdigit(static_cast<unsigned char>(ch));
@@ -96,11 +92,8 @@ namespace authbox::did {
     }
 
     inline DidResult<Did> parse(std::string_view uri) {
-        echo::debug("did::parse called with uri=", uri);
-
         if (!is_did_uri(uri)) {
-            echo::warn("did::parse rejected malformed DID uri");
-            return DidResult<Did>::err(to_dp_string("Malformed DID URI"));
+            return DidResult<Did>::err(error::invalid_did_uri());
         }
 
         const size_t second_colon = uri.find(':', 4);
@@ -109,7 +102,6 @@ namespace authbox::did {
         parsed.method = to_dp_string(uri.substr(4, second_colon - 4));
         parsed.method_id = to_dp_string(uri.substr(second_colon + 1));
 
-        echo::info("did::parse method=", parsed.method.c_str(), " id_len=", parsed.method_id.size());
         return DidResult<Did>::ok(std::move(parsed));
     }
 
@@ -166,7 +158,7 @@ namespace authbox::did {
             }
 
             if ((i + 2U) >= input.size() || !is_hex_char(input[i + 1]) || !is_hex_char(input[i + 2])) {
-                return DidResult<std::string>::err(to_dp_string("Invalid percent encoding"));
+                return DidResult<std::string>::err(error::invalid_percent_encoding());
             }
 
             auto hex_value = [](char c) -> uint8_t {
@@ -192,7 +184,7 @@ namespace authbox::did {
             return DidResult<std::string>::err(parsed.error());
         }
         if (parsed.value().method != "web") {
-            return DidResult<std::string>::err(to_dp_string("DID method must be web"));
+            return DidResult<std::string>::err(error::invalid_method_id("method must be 'web'"));
         }
 
         const std::string method_id(parsed.value().method_id.data(), parsed.value().method_id.size());
@@ -208,7 +200,7 @@ namespace authbox::did {
             start = sep + 1;
         }
         if (raw_segments.empty() || raw_segments.front().empty()) {
-            return DidResult<std::string>::err(to_dp_string("did:web method-id is empty"));
+            return DidResult<std::string>::err(error::invalid_method_id("did:web method-id is empty"));
         }
 
         auto decoded_host = percent_decode(raw_segments.front());
@@ -235,7 +227,5 @@ namespace authbox::did {
         url += "/did.json";
         return DidResult<std::string>::ok(std::move(url));
     }
-
-    inline bool is_supported_method(std::string_view method) { return method == "key" || method == "web"; }
 
 } // namespace authbox::did
