@@ -10,6 +10,7 @@
 #include "../json.hpp"
 
 #include "did.hpp"
+#include "options.hpp"
 
 namespace authbox::did {
 
@@ -310,6 +311,43 @@ namespace authbox::did {
 
         cleanup();
         return DidResult<DidDocument>::ok(std::move(out));
+    }
+
+    // Parse DID document with policy enforcement
+    inline DidResult<DidDocument> parse_document_with_options(std::string_view json_text,
+                                                              const ResolveOptions &options) {
+        auto result = parse_document(json_text);
+        if (result.is_err()) {
+            return result;
+        }
+
+        const auto &doc = result.value();
+
+        // Enforce limits
+        if (doc.verification_methods.size() > options.max_verification_methods) {
+            return DidResult<DidDocument>::err(error::invalid_document_json(
+                "too many verification methods: " + std::to_string(doc.verification_methods.size()) +
+                " (max: " + std::to_string(options.max_verification_methods) + ")"));
+        }
+
+        if (doc.services.size() > options.max_services) {
+            return DidResult<DidDocument>::err(
+                error::invalid_document_json("too many services: " + std::to_string(doc.services.size()) +
+                                             " (max: " + std::to_string(options.max_services) + ")"));
+        }
+
+        if (doc.contexts.size() > options.max_context_entries) {
+            return DidResult<DidDocument>::err(
+                error::invalid_document_json("too many @context entries: " + std::to_string(doc.contexts.size()) +
+                                             " (max: " + std::to_string(options.max_context_entries) + ")"));
+        }
+
+        // Require verification method if policy demands it
+        if (options.require_verification_method && doc.verification_methods.empty()) {
+            return DidResult<DidDocument>::err(error::no_verification_methods());
+        }
+
+        return result;
     }
 
     inline DidResult<bool> validate_document(const DidDocument &document, std::string_view expected_did_uri) {

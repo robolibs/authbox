@@ -19,12 +19,14 @@ namespace authbox::did {
         // Method-specific errors
         UNSUPPORTED_METHOD,
         METHOD_NOT_REGISTERED,
+        METHOD_NOT_ALLOWED,
         INVALID_METHOD_SPECIFIC_ID,
 
         // Document errors
         INVALID_DOCUMENT_JSON,
         DOCUMENT_MISSING_REQUIRED_FIELD,
         DOCUMENT_ID_MISMATCH,
+        DOCUMENT_TOO_LARGE,
         NO_VERIFICATION_METHODS,
         NO_VERIFICATION_RELATIONSHIPS,
         INVALID_VERIFICATION_METHOD,
@@ -86,6 +88,17 @@ namespace authbox::did {
 
         inline DidError method_not_registered(std::string_view method) {
             return to_dp_string(std::string("DID method not registered: ") + std::string(method));
+        }
+
+        inline DidError method_not_allowed(std::string_view method) {
+            return to_dp_string(std::string("DID method not allowed by policy: ") + std::string(method));
+        }
+
+        inline DidError document_too_large(std::string_view details = "") {
+            if (details.empty()) {
+                return to_dp_string("DID document exceeds maximum size");
+            }
+            return to_dp_string(std::string("DID document too large: ") + std::string(details));
         }
 
         inline DidError invalid_document_json(std::string_view details = "") {

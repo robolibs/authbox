@@ -43,12 +43,30 @@ namespace authbox::did {
             }
 
             const std::string method(parsed.value().method.data(), parsed.value().method.size());
+
+            // Check method policy
+            if (!options.is_method_allowed(method)) {
+                return DidResult<std::string>::err(error::method_not_allowed(method));
+            }
+
             auto it = handlers_.find(method);
             if (it == handlers_.end()) {
                 return DidResult<std::string>::err(error::method_not_registered(method));
             }
 
-            return it->second(did_uri, options);
+            // Invoke handler
+            auto result = it->second(did_uri, options);
+            if (result.is_err()) {
+                return result;
+            }
+
+            // Enforce document size limit
+            if (result.value().size() > options.max_document_size) {
+                return DidResult<std::string>::err(error::document_too_large(
+                    "document exceeds max size of " + std::to_string(options.max_document_size)));
+            }
+
+            return result;
         }
 
         // Get a list of all registered methods
