@@ -24,7 +24,10 @@ namespace authbox::did {
         dp::String id;
         dp::String type;
         dp::String controller;
-        JsonWebKey public_key_jwk;
+        JsonWebKey public_key_jwk;          // Optional: for JWK-based methods
+        dp::String blockchain_account_id;   // Optional: for did:pkh and similar methods
+        bool has_jwk{false};                // True if public_key_jwk is populated
+        bool has_blockchain_account{false}; // True if blockchain_account_id is populated
     };
 
     // Service endpoint - can be a string, object, or array
@@ -236,17 +239,35 @@ namespace authbox::did {
             vm.type = vm_type.value();
             vm.controller = vm_controller.value();
 
+            // Try to parse publicKeyJwk (optional)
             const auto *jwk_obj = json_value_as_object(detail::find_object_field(vm_obj, "publicKeyJwk"));
-            if (!jwk_obj) {
-                cleanup();
-                return DidResult<DidDocument>::err(error::invalid_verification_method("publicKeyJwk is required"));
+            if (jwk_obj) {
+                auto jwk = detail::parse_jwk(jwk_obj);
+                if (jwk.is_err()) {
+                    cleanup();
+                    return DidResult<DidDocument>::err(jwk.error());
+                }
+                vm.public_key_jwk = jwk.value();
+                vm.has_jwk = true;
             }
-            auto jwk = detail::parse_jwk(jwk_obj);
-            if (jwk.is_err()) {
-                cleanup();
-                return DidResult<DidDocument>::err(jwk.error());
+
+            // Try to parse blockchainAccountId (optional)
+            json_value_t *blockchain_acct = detail::find_object_field(vm_obj, "blockchainAccountId");
+            if (blockchain_acct) {
+                const auto *text = json_value_as_string(blockchain_acct);
+                if (text) {
+                    vm.blockchain_account_id = to_dp_string(detail::json_string_view(text));
+                    vm.has_blockchain_account = true;
+                }
             }
-            vm.public_key_jwk = jwk.value();
+
+            // At least one key representation must be present
+            if (!vm.has_jwk && !vm.has_blockchain_account) {
+                cleanup();
+                return DidResult<DidDocument>::err(
+                    error::invalid_verification_method("either publicKeyJwk or blockchainAccountId is required"));
+            }
+
             out.verification_methods.push_back(std::move(vm));
         }
 
