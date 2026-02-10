@@ -27,6 +27,14 @@ namespace authbox::did {
         JsonWebKey public_key_jwk;
     };
 
+    // Service endpoint - can be a string, object, or array
+    // For simplicity, we store it as a raw JSON string
+    struct Service {
+        dp::String id;
+        dp::String type;
+        dp::String service_endpoint_json; // Raw JSON representation
+    };
+
     struct DidDocument {
         dp::String id;
         std::vector<dp::String> contexts;
@@ -34,6 +42,7 @@ namespace authbox::did {
         std::vector<dp::String> authentication;
         std::vector<dp::String> assertion_method;
         std::vector<dp::String> key_agreement;
+        std::vector<Service> services;
     };
 
     namespace detail {
@@ -88,6 +97,49 @@ namespace authbox::did {
                 out.push_back(to_dp_string(json_string_view(text)));
             }
             return out;
+        }
+
+        // Simple JSON value to string serialization (for serviceEndpoint)
+        inline std::string json_value_to_string(json_value_t *value) {
+            if (!value) {
+                return "null";
+            }
+
+            if (const auto *str = json_value_as_string(value)) {
+                return "\"" + std::string(json_string_view(str)) + "\"";
+            }
+
+            if (const auto *obj = json_value_as_object(value)) {
+                std::string result = "{";
+                bool first = true;
+                for (json_object_element_t *elem = obj->start; elem != nullptr; elem = elem->next) {
+                    if (!first) {
+                        result += ",";
+                    }
+                    first = false;
+                    result += "\"" + std::string(json_string_view(elem->name)) + "\":";
+                    result += json_value_to_string(elem->value);
+                }
+                result += "}";
+                return result;
+            }
+
+            if (const auto *arr = json_value_as_array(value)) {
+                std::string result = "[";
+                bool first = true;
+                for (json_array_element_t *elem = arr->start; elem != nullptr; elem = elem->next) {
+                    if (!first) {
+                        result += ",";
+                    }
+                    first = false;
+                    result += json_value_to_string(elem->value);
+                }
+                result += "]";
+                return result;
+            }
+
+            // For numbers and booleans, we'd need more logic, but for now just return a placeholder
+            return "null";
         }
 
         inline DidResult<JsonWebKey> parse_jwk(const json_object_t *obj) {
@@ -201,6 +253,39 @@ namespace authbox::did {
         out.authentication = detail::parse_string_array(detail::find_object_field(root_obj, "authentication"));
         out.assertion_method = detail::parse_string_array(detail::find_object_field(root_obj, "assertionMethod"));
         out.key_agreement = detail::parse_string_array(detail::find_object_field(root_obj, "keyAgreement"));
+
+        // Parse services (optional)
+        json_value_t *service_value = detail::find_object_field(root_obj, "service");
+        if (service_value) {
+            const auto *service_array = json_value_as_array(service_value);
+            if (service_array) {
+                out.services.reserve(service_array->length);
+                for (json_array_element_t *elem = service_array->start; elem != nullptr; elem = elem->next) {
+                    const auto *service_obj = json_value_as_object(elem->value);
+                    if (!service_obj) {
+                        continue; // Skip invalid service entries
+                    }
+
+                    Service svc{};
+                    auto svc_id = detail::parse_required_string_field(service_obj, "id");
+                    auto svc_type = detail::parse_required_string_field(service_obj, "type");
+                    if (svc_id.is_err() || svc_type.is_err()) {
+                        continue; // Skip services with missing required fields
+                    }
+
+                    svc.id = svc_id.value();
+                    svc.type = svc_type.value();
+
+                    // Parse serviceEndpoint (can be string, object, or array)
+                    json_value_t *endpoint = detail::find_object_field(service_obj, "serviceEndpoint");
+                    if (endpoint) {
+                        svc.service_endpoint_json = to_dp_string(detail::json_value_to_string(endpoint));
+                    }
+
+                    out.services.push_back(std::move(svc));
+                }
+            }
+        }
 
         cleanup();
         return DidResult<DidDocument>::ok(std::move(out));

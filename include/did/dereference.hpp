@@ -16,8 +16,7 @@ namespace authbox::did {
     };
 
     struct DereferencedService {
-        // TODO: Will be implemented in Phase 4
-        dp::String id;
+        Service service;
     };
 
     struct DereferencedDocument {
@@ -108,7 +107,38 @@ namespace authbox::did {
             }
         }
 
-        // TODO: Phase 4 - Search in services when implemented
+        // Try to find service with matching ID
+        for (const auto &svc : doc.services) {
+            const std::string_view svc_id(svc.id.data(), svc.id.size());
+
+            // Support both local fragments (#agent) and absolute IDs
+            bool matches = false;
+
+            // Check if it's a local fragment reference
+            if (svc_id.ends_with(fragment) && svc_id.size() > fragment.size() &&
+                svc_id[svc_id.size() - fragment.size() - 1] == '#') {
+                matches = true;
+            }
+
+            // Check if it's an exact match (absolute ID)
+            if (svc_id == fragment) {
+                matches = true;
+            }
+
+            // Check if the full DID URL matches
+            std::string full_ref = did_uri + "#" + std::string(fragment);
+            if (svc_id == full_ref) {
+                matches = true;
+            }
+
+            if (matches) {
+                DereferenceResult result{};
+                result.resource = DereferencedService{svc};
+                result.content_type = to_dp_string("application/did+json");
+                result.did = url.did;
+                return DidResult<DereferenceResult>::ok(std::move(result));
+            }
+        }
 
         // Fragment not found
         return DidResult<DereferenceResult>::err(error::fragment_not_found(fragment));
@@ -137,6 +167,11 @@ namespace authbox::did {
     // Helper to get document (throws if wrong type)
     inline const DidDocument &get_document(const DereferenceResult &result) {
         return std::get<DereferencedDocument>(result.resource).document;
+    }
+
+    // Helper to get service (throws if wrong type)
+    inline const Service &get_service(const DereferenceResult &result) {
+        return std::get<DereferencedService>(result.resource).service;
     }
 
 } // namespace authbox::did
