@@ -4,6 +4,7 @@
 
 #include <did/dereference.hpp>
 #include <did/did.hpp>
+#include <did/dns.hpp>
 #include <did/document.hpp>
 #include <did/jwk.hpp>
 #include <did/key.hpp>
