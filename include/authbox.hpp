@@ -2,6 +2,7 @@
 
 #include <echo/echo.hpp>
 
+#include <did/dereference.hpp>
 #include <did/did.hpp>
 #include <did/document.hpp>
 #include <did/jwk.hpp>
