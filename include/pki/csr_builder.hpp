@@ -41,12 +41,27 @@ namespace authbox::pik {
             return set_subject_public_key(spki);
         }
 
+        inline CsrBuilder &set_signature_algorithm(SignatureAlgorithmId algorithm) {
+            signature_algorithm_.signature = algorithm;
+            return *this;
+        }
+
         inline CsrBuilder &add_extension(const RawExtension &extension) {
             info_.extensions.push_back(extension);
             return *this;
         }
 
         inline CertificateResult<CertificateRequest> build_ed25519(const keylock::crypto::Context::KeyPair &key) const {
+            return build(key, SignatureAlgorithmId::Ed25519);
+        }
+
+        inline CertificateResult<CertificateRequest> build(const keylock::crypto::Context::KeyPair &key) const {
+            return build(key, signature_algorithm_.signature);
+        }
+
+      private:
+        inline CertificateResult<CertificateRequest> build(const keylock::crypto::Context::KeyPair &key,
+                                                           SignatureAlgorithmId algorithm_id) const {
             if (auto err = validate_inputs()) {
                 return CertificateResult<CertificateRequest>::failure(*err);
             }
@@ -55,29 +70,37 @@ namespace authbox::pik {
                 return CertificateResult<CertificateRequest>::failure("failed to encode CRI");
             }
 
-            keylock::crypto::Context signer(keylock::crypto::Context::Algorithm::Ed25519);
+            auto algorithm = detail::keylock_signature_algorithm(algorithm_id);
+            if (!algorithm.has_value()) {
+                return CertificateResult<CertificateRequest>::failure("Unsupported CSR signature algorithm");
+            }
+
+            keylock::crypto::Context signer(*algorithm);
             auto sig = signer.sign(cri, key.private_key);
             if (!sig.success) {
                 return CertificateResult<CertificateRequest>::failure(sig.error_message);
             }
 
+            auto encoded_sig = detail::normalize_signature_for_emit(sig.data, algorithm_id);
+            if (!encoded_sig.success) {
+                return CertificateResult<CertificateRequest>::failure(encoded_sig.error);
+            }
+
             AlgorithmIdentifier alg{};
-            alg.signature = SignatureAlgorithmId::Ed25519;
+            alg.signature = algorithm_id;
 
             CertificateRequest csr{};
             csr.info = info_;
             csr.signature_algorithm = alg;
-            csr.signature = sig.data;
+            csr.signature = encoded_sig.value;
             csr.cri_der = cri;
             std::vector<std::vector<uint8_t>> fields;
             fields.push_back(cri);
             fields.push_back(der::encode_sequence(der::encode_oid(*oid_for_signature(alg.signature))));
-            fields.push_back(der::encode_bit_string(ByteSpan(sig.data.data(), sig.data.size())));
+            fields.push_back(der::encode_bit_string(ByteSpan(csr.signature.data(), csr.signature.size())));
             csr.der = der::encode_sequence(der::concat(fields));
             return CertificateResult<CertificateRequest>::ok(std::move(csr));
         }
-
-      private:
         inline std::optional<std::string> validate_inputs() const {
             if (!subject_set_) {
                 return "subject not set";
@@ -115,6 +138,8 @@ namespace authbox::pik {
         CertificationRequestInfo info_{};
         bool subject_set_{false};
         bool spki_set_{false};
+        AlgorithmIdentifier signature_algorithm_{SignatureAlgorithmId::Ed25519, keylock::hash::Algorithm::SHA256,
+                                                 CurveId::Ed25519};
     };
 
 } // namespace authbox::pik

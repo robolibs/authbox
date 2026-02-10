@@ -26,15 +26,23 @@ namespace authbox::pik {
         std::vector<uint8_t> cri_der;
 
         inline CertificateSignatureResult sign(const keylock::crypto::Context::KeyPair &key) const {
-            if (signature_algorithm.signature != SignatureAlgorithmId::Ed25519) {
-                return CertificateSignatureResult::failure("unsupported CSR signature algorithm");
+            auto algorithm = detail::keylock_signature_algorithm(signature_algorithm.signature);
+            if (!algorithm.has_value()) {
+                return CertificateSignatureResult::failure("Unsupported CSR signature algorithm");
             }
-            keylock::crypto::Context signer(keylock::crypto::Context::Algorithm::Ed25519);
+
+            keylock::crypto::Context signer(*algorithm);
             auto sig = signer.sign(cri_der, key.private_key);
             if (!sig.success) {
                 return CertificateSignatureResult::failure(sig.error_message);
             }
-            return CertificateSignatureResult::ok(sig.data);
+
+            auto encoded = detail::normalize_signature_for_emit(sig.data, signature_algorithm.signature);
+            if (!encoded.success) {
+                return CertificateSignatureResult::failure(encoded.error);
+            }
+
+            return CertificateSignatureResult::ok(encoded.value);
         }
     };
 
@@ -97,7 +105,7 @@ namespace authbox::pik {
     }
 
     inline CertificateResult<CertificateRequest> load_csr(const std::string &path) {
-        auto file = keylock::io::read_binary(path);
+        auto file = authbox::io::read_binary(path);
         if (!file.success) {
             return CertificateResult<CertificateRequest>::failure(file.error_message);
         }

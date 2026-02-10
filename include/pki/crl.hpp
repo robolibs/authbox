@@ -139,16 +139,31 @@ namespace authbox::pik {
 
         // Signature verification
         inline CertificateBoolResult verify_signature(const Certificate &issuer_cert) const {
-            if (outer_signature.signature != SignatureAlgorithmId::Ed25519) {
+            auto algorithm = detail::keylock_signature_algorithm(outer_signature.signature);
+            if (!algorithm.has_value()) {
                 return CertificateBoolResult::failure("Unsupported signature algorithm for CRL verification");
             }
-            keylock::crypto::Context verifier(keylock::crypto::Context::Algorithm::Ed25519);
-            auto result =
-                verifier.verify(tbs_der, signature_value, issuer_cert.tbs().subject_public_key_info.public_key);
+
+            auto public_key = detail::normalize_public_key_for_verify(issuer_cert.tbs().subject_public_key_info,
+                                                                      outer_signature.signature);
+            if (!public_key.success) {
+                return CertificateBoolResult::failure(public_key.error);
+            }
+
+            auto signature = detail::normalize_signature_for_verify(signature_value, outer_signature.signature);
+            if (!signature.success) {
+                return CertificateBoolResult::failure(signature.error);
+            }
+
+            keylock::crypto::Context verifier(*algorithm);
+            auto result = verifier.verify(tbs_der, signature.value, public_key.value);
             if (!result.success) {
+                if (result.error_message.find("verification failed") != std::string::npos) {
+                    return CertificateBoolResult::ok(false);
+                }
                 return CertificateBoolResult::failure(result.error_message);
             }
-            return CertificateBoolResult::ok(result.success);
+            return CertificateBoolResult::ok(true);
         }
     };
 
@@ -620,7 +635,7 @@ namespace authbox::pik {
     }
 
     inline CertificateResult<Crl> load_crl(const std::string &path) {
-        auto file = keylock::io::read_binary(path);
+        auto file = authbox::io::read_binary(path);
         if (!file.success) {
             return CertificateResult<Crl>::failure(file.error_message);
         }

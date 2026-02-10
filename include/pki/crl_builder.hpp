@@ -55,24 +55,44 @@ namespace authbox::pik {
         }
 
         inline CertificateResult<Crl> build_ed25519(const keylock::crypto::Context::KeyPair &issuer_key) const {
-            return build(issuer_key);
+            return build(issuer_key, SignatureAlgorithmId::Ed25519);
+        }
+
+        inline CertificateResult<Crl> build(const keylock::crypto::Context::KeyPair &issuer_key) const {
+            return build(issuer_key, signature_algorithm_.signature);
+        }
+
+        inline CrlBuilder &set_signature_algorithm(SignatureAlgorithmId algorithm) {
+            signature_algorithm_.signature = algorithm;
+            return *this;
         }
 
       private:
-        inline CertificateResult<Crl> build(const keylock::crypto::Context::KeyPair &issuer_key) const {
+        inline CertificateResult<Crl> build(const keylock::crypto::Context::KeyPair &issuer_key,
+                                            SignatureAlgorithmId algorithm_id) const {
             if (auto validation = validate_inputs()) {
                 return CertificateResult<Crl>::failure(*validation);
             }
 
-            auto tbs = encode_tbs();
-            keylock::crypto::Context signer(keylock::crypto::Context::Algorithm::Ed25519);
+            auto algorithm = detail::keylock_signature_algorithm(algorithm_id);
+            if (!algorithm.has_value()) {
+                return CertificateResult<Crl>::failure("Unsupported CRL signature algorithm");
+            }
+
+            auto tbs = encode_tbs(algorithm_id);
+            keylock::crypto::Context signer(*algorithm);
             auto sig = signer.sign(tbs, issuer_key.private_key);
             if (!sig.success) {
                 return CertificateResult<Crl>::failure(sig.error_message);
             }
 
+            auto encoded_sig = detail::normalize_signature_for_emit(sig.data, algorithm_id);
+            if (!encoded_sig.success) {
+                return CertificateResult<Crl>::failure(encoded_sig.error);
+            }
+
             AlgorithmIdentifier alg{};
-            alg.signature = SignatureAlgorithmId::Ed25519;
+            alg.signature = algorithm_id;
 
             Crl crl{};
             crl.version = 2;
@@ -82,12 +102,13 @@ namespace authbox::pik {
             crl.next_update = next_update_;
             crl.revoked = entries_;
             crl.outer_signature = alg;
-            crl.signature_value = sig.data;
+            crl.signature_value = encoded_sig.value;
             crl.tbs_der = tbs;
             std::vector<std::vector<uint8_t>> cert_fields;
             cert_fields.push_back(tbs);
             cert_fields.push_back(der::encode_sequence(der::encode_oid(*oid_for_signature(alg.signature))));
-            cert_fields.push_back(der::encode_bit_string(ByteSpan(sig.data.data(), sig.data.size())));
+            cert_fields.push_back(
+                der::encode_bit_string(ByteSpan(crl.signature_value.data(), crl.signature_value.size())));
             crl.der = der::encode_sequence(der::concat(cert_fields));
 
             return CertificateResult<Crl>::ok(std::move(crl));
@@ -103,7 +124,7 @@ namespace authbox::pik {
             return std::nullopt;
         }
 
-        inline std::vector<uint8_t> encode_tbs() const {
+        inline std::vector<uint8_t> encode_tbs(SignatureAlgorithmId algorithm_id) const {
             std::vector<std::vector<uint8_t>> fields;
 
             // Version is OPTIONAL in CRLs. If present, it MUST be v2 (encoded as INTEGER 1)
@@ -112,10 +133,10 @@ namespace authbox::pik {
             fields.push_back(der::encode_integer(1)); // v2
 
             AlgorithmIdentifier alg{};
-            alg.signature = SignatureAlgorithmId::Ed25519;
+            alg.signature = algorithm_id;
             auto sig_oid = oid_for_signature(alg.signature);
             if (!sig_oid) {
-                throw std::runtime_error("Failed to get OID for Ed25519 signature algorithm");
+                throw std::runtime_error("Failed to get OID for CRL signature algorithm");
             }
             fields.push_back(der::encode_sequence(der::encode_oid(*sig_oid)));
             fields.push_back(issuer_.der());
@@ -181,6 +202,8 @@ namespace authbox::pik {
         std::chrono::system_clock::time_point this_update_{};
         std::optional<std::chrono::system_clock::time_point> next_update_;
         std::vector<RevokedCertificate> entries_;
+        AlgorithmIdentifier signature_algorithm_{SignatureAlgorithmId::Ed25519, keylock::hash::Algorithm::SHA256,
+                                                 CurveId::Ed25519};
     };
 
 } // namespace authbox::pik

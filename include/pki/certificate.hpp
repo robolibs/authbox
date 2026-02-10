@@ -432,6 +432,139 @@ namespace authbox::pik {
             return !left.empty() && left.find('.') == std::string::npos;
         }
 
+        inline std::vector<uint8_t> strip_integer_padding(std::vector<uint8_t> value) {
+            while (value.size() > 1 && value.front() == 0x00) {
+                value.erase(value.begin());
+            }
+            return value;
+        }
+
+        inline std::optional<std::pair<std::vector<uint8_t>, std::vector<uint8_t>>>
+        parse_rsa_public_key_der(const std::vector<uint8_t> &der) {
+            auto seq = parse_sequence(ByteSpan(der.data(), der.size()));
+            if (!seq.success) {
+                return std::nullopt;
+            }
+
+            detail::DerCursor cursor(seq.value);
+            auto modulus = parse_integer(cursor.remaining());
+            if (!modulus.success) {
+                return std::nullopt;
+            }
+            cursor.advance(modulus.bytes_consumed);
+
+            auto exponent = parse_integer(cursor.remaining());
+            if (!exponent.success) {
+                return std::nullopt;
+            }
+
+            std::vector<uint8_t> modulus_bytes(modulus.value.begin(), modulus.value.end());
+            std::vector<uint8_t> exponent_bytes(exponent.value.begin(), exponent.value.end());
+            return std::make_pair(strip_integer_padding(std::move(modulus_bytes)),
+                                  strip_integer_padding(std::move(exponent_bytes)));
+        }
+
+        inline std::optional<keylock::crypto::Context::Algorithm>
+        keylock_signature_algorithm(SignatureAlgorithmId signature_algorithm) {
+            using KeylockAlgorithm = keylock::crypto::Context::Algorithm;
+            switch (signature_algorithm) {
+            case SignatureAlgorithmId::Ed25519:
+                return KeylockAlgorithm::Ed25519;
+            case SignatureAlgorithmId::RsaPkcs1Sha256:
+                return KeylockAlgorithm::RSA_PKCS1v15_SHA256;
+            case SignatureAlgorithmId::RsaPkcs1Sha384:
+                return KeylockAlgorithm::RSA_PKCS1v15_SHA384;
+            case SignatureAlgorithmId::RsaPkcs1Sha512:
+                return KeylockAlgorithm::RSA_PKCS1v15_SHA512;
+            case SignatureAlgorithmId::RsaPssSha256:
+                return KeylockAlgorithm::RSA_PSS_SHA256;
+            case SignatureAlgorithmId::RsaPssSha384:
+                return KeylockAlgorithm::RSA_PSS_SHA384;
+            case SignatureAlgorithmId::RsaPssSha512:
+                return KeylockAlgorithm::RSA_PSS_SHA512;
+            case SignatureAlgorithmId::EcdsaSha256:
+                return KeylockAlgorithm::ECDSA_P256_SHA256;
+            default:
+                return std::nullopt;
+            }
+        }
+
+        inline CertificateResult<std::vector<uint8_t>>
+        normalize_public_key_for_verify(const SubjectPublicKeyInfo &spki, SignatureAlgorithmId signature_algorithm) {
+            if (signature_algorithm == SignatureAlgorithmId::Ed25519) {
+                if (spki.public_key.size() != 32) {
+                    return CertificateResult<std::vector<uint8_t>>::failure("Invalid Ed25519 issuer public key size");
+                }
+                return CertificateResult<std::vector<uint8_t>>::ok(spki.public_key);
+            }
+
+            if (signature_algorithm == SignatureAlgorithmId::EcdsaSha256) {
+                if (spki.public_key.size() == 65 && spki.public_key.front() == 0x04) {
+                    return CertificateResult<std::vector<uint8_t>>::ok(
+                        std::vector<uint8_t>(spki.public_key.begin() + 1, spki.public_key.end()));
+                }
+                if (spki.public_key.size() == 64) {
+                    return CertificateResult<std::vector<uint8_t>>::ok(spki.public_key);
+                }
+                return CertificateResult<std::vector<uint8_t>>::failure("Invalid ECDSA P-256 issuer public key format");
+            }
+
+            switch (signature_algorithm) {
+            case SignatureAlgorithmId::RsaPkcs1Sha256:
+            case SignatureAlgorithmId::RsaPkcs1Sha384:
+            case SignatureAlgorithmId::RsaPkcs1Sha512:
+            case SignatureAlgorithmId::RsaPssSha256:
+            case SignatureAlgorithmId::RsaPssSha384:
+            case SignatureAlgorithmId::RsaPssSha512: {
+                auto rsa_from_der = parse_rsa_public_key_der(spki.public_key);
+                if (rsa_from_der.has_value()) {
+                    return CertificateResult<std::vector<uint8_t>>::ok(
+                        keylock::crypto::Context::encode_rsa_public_key_blob(rsa_from_der->first,
+                                                                             rsa_from_der->second));
+                }
+                return CertificateResult<std::vector<uint8_t>>::ok(spki.public_key);
+            }
+            default:
+                return CertificateResult<std::vector<uint8_t>>::failure(
+                    "Unsupported signature algorithm for key conversion");
+            }
+        }
+
+        inline CertificateResult<std::vector<uint8_t>>
+        normalize_signature_for_verify(const std::vector<uint8_t> &signature,
+                                       SignatureAlgorithmId signature_algorithm) {
+            if (signature_algorithm != SignatureAlgorithmId::EcdsaSha256) {
+                return CertificateResult<std::vector<uint8_t>>::ok(signature);
+            }
+
+            if (signature.size() == 64) {
+                return CertificateResult<std::vector<uint8_t>>::ok(signature);
+            }
+
+            auto decoded = keylock::crypto::Context::decode_ecdsa_p256_signature_der(signature);
+            if (!decoded.success) {
+                return CertificateResult<std::vector<uint8_t>>::failure(decoded.error_message);
+            }
+            return CertificateResult<std::vector<uint8_t>>::ok(decoded.data);
+        }
+
+        inline CertificateResult<std::vector<uint8_t>>
+        normalize_signature_for_emit(const std::vector<uint8_t> &signature, SignatureAlgorithmId signature_algorithm) {
+            if (signature_algorithm != SignatureAlgorithmId::EcdsaSha256) {
+                return CertificateResult<std::vector<uint8_t>>::ok(signature);
+            }
+
+            if (signature.size() != 64) {
+                return CertificateResult<std::vector<uint8_t>>::failure("Unexpected ECDSA raw signature size");
+            }
+
+            auto der = keylock::crypto::Context::encode_ecdsa_p256_signature_der(signature);
+            if (!der.success) {
+                return CertificateResult<std::vector<uint8_t>>::failure(der.error_message);
+            }
+            return CertificateResult<std::vector<uint8_t>>::ok(der.data);
+        }
+
     } // namespace detail
 
     class Certificate {
@@ -620,7 +753,7 @@ namespace authbox::pik {
     }
 
     inline CertificateChainResult Certificate::load(const std::string &path, bool relaxed) {
-        auto file = keylock::io::read_binary(path);
+        auto file = authbox::io::read_binary(path);
         if (!file.success) {
             return CertificateChainResult::failure(file.error_message);
         }
@@ -642,38 +775,55 @@ namespace authbox::pik {
 
     inline bool Certificate::save(const std::string &path, CertificateFormat format) const {
         if (format == CertificateFormat::DER) {
-            return keylock::io::write_binary(der_, path);
+            return authbox::io::write_binary(der_, path);
         }
 
         const auto pem = to_pem();
         std::vector<uint8_t> pem_bytes(pem.begin(), pem.end());
-        return keylock::io::write_binary(pem_bytes, path);
+        return authbox::io::write_binary(pem_bytes, path);
     }
 
     inline CertificateSignatureResult Certificate::sign(const keylock::crypto::Context::KeyPair &issuer_key,
                                                         keylock::hash::Algorithm) const {
-        if (signature_algorithm_.signature != SignatureAlgorithmId::Ed25519) {
-            return CertificateSignatureResult::failure("Unsupported signature algorithm");
+        auto algorithm = detail::keylock_signature_algorithm(signature_algorithm_.signature);
+        if (!algorithm.has_value()) {
+            return CertificateSignatureResult::failure("Unsupported signature algorithm for signing");
         }
-        keylock::crypto::Context signer(keylock::crypto::Context::Algorithm::Ed25519);
+
+        keylock::crypto::Context signer(*algorithm);
         auto result = signer.sign(tbs_der_, issuer_key.private_key);
         if (!result.success) {
             return CertificateSignatureResult::failure(result.error_message);
         }
-        return CertificateSignatureResult::ok(result.data);
+
+        auto encoded = detail::normalize_signature_for_emit(result.data, signature_algorithm_.signature);
+        if (!encoded.success) {
+            return CertificateSignatureResult::failure(encoded.error);
+        }
+        return CertificateSignatureResult::ok(encoded.value);
     }
 
     inline CertificateBoolResult Certificate::verify_signature(const Certificate &issuer) const {
-        if (signature_algorithm_.signature != SignatureAlgorithmId::Ed25519 ||
-            issuer.tbs_.subject_public_key_info.algorithm.signature != SignatureAlgorithmId::Ed25519) {
+        auto algorithm = detail::keylock_signature_algorithm(signature_algorithm_.signature);
+        if (!algorithm.has_value()) {
             return CertificateBoolResult::failure("Unsupported signature algorithm for verification");
         }
 
-        keylock::crypto::Context verifier(keylock::crypto::Context::Algorithm::Ed25519);
-        auto verify_result =
-            verifier.verify(tbs_der_, signature_value_, issuer.tbs_.subject_public_key_info.public_key);
+        auto public_key = detail::normalize_public_key_for_verify(issuer.tbs_.subject_public_key_info,
+                                                                  signature_algorithm_.signature);
+        if (!public_key.success) {
+            return CertificateBoolResult::failure(public_key.error);
+        }
+
+        auto signature = detail::normalize_signature_for_verify(signature_value_, signature_algorithm_.signature);
+        if (!signature.success) {
+            return CertificateBoolResult::failure(signature.error);
+        }
+
+        keylock::crypto::Context verifier(*algorithm);
+        auto verify_result = verifier.verify(tbs_der_, signature.value, public_key.value);
         if (!verify_result.success) {
-            if (verify_result.error_message == "Ed25519 signature verification failed") {
+            if (verify_result.error_message.find("verification failed") != std::string::npos) {
                 return CertificateBoolResult::ok(false);
             }
             return CertificateBoolResult::failure(verify_result.error_message);

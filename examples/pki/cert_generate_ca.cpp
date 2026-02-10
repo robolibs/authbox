@@ -17,8 +17,7 @@ int main() {
         .set_subject_public_key_ed25519(ca_key.public_key)
         .set_validity(now - 24h, now + 2 * 365 * 24h)
         .set_basic_constraints(true, 1)
-        .set_key_usage(authbox::pik::KeyUsageExtension::KeyCertSign |
-                       authbox::pik::KeyUsageExtension::CRLSign)
+        .set_key_usage(authbox::pik::KeyUsageExtension::KeyCertSign | authbox::pik::KeyUsageExtension::CRLSign)
         .set_subject_key_identifier(ca_key.public_key);
 
     auto certificate = builder.build_ed25519(ca_key, true);

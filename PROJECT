@@ -19,12 +19,13 @@
 # ==============================================================================
 
 authbox
-0.0.1
+0.0.2
 
 [lib]
 echo|https://github.com/bresilla/echo.git|0.0.25
 datapod|https://github.com/robolibs/datapod.git|0.0.41
-keylock|https://github.com/robolibs/keylock.git|0.0.15
+keylock|https://github.com/robolibs/keylock.git|0.0.18
+netpipe|https://github.com/robolibs/netpipe.git|0.0.16
 
 [example]
 scan|https://github.com/bresilla/scan.git|0.0.10

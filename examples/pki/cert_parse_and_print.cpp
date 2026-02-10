@@ -3,10 +3,10 @@
 #include <string>
 #include <vector>
 
+#include "keylock/crypto/common.hpp"
 #include "pki/builder.hpp"
 #include "pki/certificate.hpp"
 #include "pki/key_utils.hpp"
-#include "keylock/crypto/common.hpp"
 
 int main(int argc, char **argv) {
     using namespace std::chrono_literals;

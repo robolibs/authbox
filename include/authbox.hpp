@@ -3,6 +3,11 @@
 #include <echo/echo.hpp>
 
 #include <did/did.hpp>
+#include <did/document.hpp>
+#include <did/key.hpp>
+#include <did/resolver.hpp>
+#include <did/rpc.hpp>
+#include <did/x509.hpp>
 #include <pki/pki.hpp>
 
 namespace authbox {
@@ -13,4 +18,4 @@ namespace authbox {
 
 } // namespace authbox
 
-namespace autbox = authbox;
+namespace ab = authbox;

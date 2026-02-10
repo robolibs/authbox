@@ -99,3 +99,7 @@ namespace authbox::pik {
     }
 
 } // namespace authbox::pik
+
+namespace authbox {
+    namespace pki = pik;
+}

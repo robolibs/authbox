@@ -156,6 +156,36 @@ namespace authbox::pik {
             return set_subject_public_key_info(spki);
         }
 
+        inline CertificateBuilder &set_subject_public_key_ecdsa_p256(const std::vector<uint8_t> &public_key_xy) {
+            SubjectPublicKeyInfo spki{};
+            spki.algorithm.signature = SignatureAlgorithmId::EcdsaSha256;
+            spki.algorithm.curve = CurveId::Secp256r1;
+            spki.algorithm.hash = keylock::hash::Algorithm::SHA256;
+            spki.public_key = public_key_xy;
+            spki.unused_bits = 0;
+            return set_subject_public_key_info(spki);
+        }
+
+        inline CertificateBuilder &
+        set_subject_public_key_rsa(const std::vector<uint8_t> &rsa_public_blob,
+                                   keylock::hash::Algorithm hash_alg = keylock::hash::Algorithm::SHA256,
+                                   bool pss = false) {
+            SubjectPublicKeyInfo spki{};
+            if (pss) {
+                spki.algorithm.signature = hash_alg == keylock::hash::Algorithm::SHA512
+                                               ? SignatureAlgorithmId::RsaPssSha512
+                                               : SignatureAlgorithmId::RsaPssSha256;
+            } else {
+                spki.algorithm.signature = hash_alg == keylock::hash::Algorithm::SHA512
+                                               ? SignatureAlgorithmId::RsaPkcs1Sha512
+                                               : SignatureAlgorithmId::RsaPkcs1Sha256;
+            }
+            spki.algorithm.hash = hash_alg;
+            spki.public_key = rsa_public_blob;
+            spki.unused_bits = 0;
+            return set_subject_public_key_info(spki);
+        }
+
         inline CertificateBuilder &add_extension(const RawExtension &extension) {
             auto existing = std::find_if(extensions_.begin(), extensions_.end(),
                                          [&](const RawExtension &ext) { return ext.id == extension.id; });
@@ -203,19 +233,27 @@ namespace authbox::pik {
 
         inline CertificateResult<Certificate> build(const keylock::crypto::Context::KeyPair &issuer_key,
                                                     bool self_signed = false) const {
-            if (signature_algorithm_.signature == SignatureAlgorithmId::Ed25519) {
-                return build_ed25519(issuer_key, self_signed);
+            auto algorithm = detail::keylock_signature_algorithm(signature_algorithm_.signature);
+            if (!algorithm.has_value()) {
+                return CertificateResult<Certificate>::failure("Unsupported signature algorithm for builder");
             }
-            return CertificateResult<Certificate>::failure("Unsupported signature algorithm for builder");
+            return build_with_algorithm(issuer_key, self_signed, *algorithm);
         }
 
         inline CertificateResult<Certificate> build_ed25519(const keylock::crypto::Context::KeyPair &issuer_key,
                                                             bool self_signed = false) const {
+            return build_with_algorithm(issuer_key, self_signed, keylock::crypto::Context::Algorithm::Ed25519);
+        }
+
+      private:
+        inline CertificateResult<Certificate>
+        build_with_algorithm(const keylock::crypto::Context::KeyPair &issuer_key, bool self_signed,
+                             keylock::crypto::Context::Algorithm algorithm) const {
             if (auto err = validate_inputs(self_signed)) {
                 return CertificateResult<Certificate>::failure(*err);
             }
 
-            keylock::crypto::Context signer(keylock::crypto::Context::Algorithm::Ed25519);
+            keylock::crypto::Context signer(algorithm);
             auto serial = serial_number_.empty() ? detail::make_random_serial() : serial_number_;
 
             CertificateBuilder builder_copy(*this);
@@ -231,9 +269,14 @@ namespace authbox::pik {
                 return CertificateResult<Certificate>::failure(sig.error_message);
             }
 
+            auto encoded_sig = detail::normalize_signature_for_emit(sig.data, signature_algorithm_.signature);
+            if (!encoded_sig.success) {
+                return CertificateResult<Certificate>::failure(encoded_sig.error);
+            }
+
             AlgorithmIdentifier signature_alg = builder_copy.signature_algorithm_;
             auto alg_der = builder_copy.encode_algorithm_identifier(signature_alg);
-            auto sig_bit = der::encode_bit_string(ByteSpan(sig.data.data(), sig.data.size()), 0);
+            auto sig_bit = der::encode_bit_string(ByteSpan(encoded_sig.value.data(), encoded_sig.value.size()), 0);
 
             std::vector<std::vector<uint8_t>> cert_fields;
             cert_fields.push_back(tbs_der);
@@ -251,11 +294,9 @@ namespace authbox::pik {
             tbs_struct.subject_public_key_info = builder_copy.subject_public_key_info_;
             tbs_struct.extensions = builder_copy.extensions_;
 
-            Certificate certificate(tbs_struct, signature_alg, sig.data, cert_der, tbs_der);
+            Certificate certificate(tbs_struct, signature_alg, encoded_sig.value, cert_der, tbs_der);
             return CertificateResult<Certificate>::ok(std::move(certificate));
         }
-
-      private:
         inline std::optional<std::string> validate_inputs(bool self_signed) const {
             if (!subject_explicit_) {
                 return "Subject not set";

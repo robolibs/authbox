@@ -24,9 +24,8 @@ int main() {
 
     const std::string path = "client_request.csr.pem";
     std::ofstream out(path, std::ios::binary);
-    const auto pem =
-        authbox::pik::pem_encode(authbox::pik::ByteSpan(csr.value.der.data(), csr.value.der.size()),
-                                 "CERTIFICATE REQUEST");
+    const auto pem = authbox::pik::pem_encode(authbox::pik::ByteSpan(csr.value.der.data(), csr.value.der.size()),
+                                              "CERTIFICATE REQUEST");
     out << pem;
     if (!out.good()) {
         std::cerr << "Unable to write CSR file\n";
