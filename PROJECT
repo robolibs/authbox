@@ -24,6 +24,7 @@ authbox
 [lib]
 echo|https://github.com/bresilla/echo.git|0.0.25
 datapod|https://github.com/robolibs/datapod.git|0.0.51
+blockit|https://github.com/robolibs/blockit.git|0.0.10
 keylock|https://github.com/robolibs/keylock.git|0.0.18
 netpipe|https://github.com/robolibs/netpipe.git|0.0.19
 

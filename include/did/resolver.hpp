@@ -41,7 +41,7 @@ namespace authbox::did {
                     }
                     return resolve_from_document(did_uri, key_doc.value(), "did:key:inline", options);
                 }
-                return DidResult<Resolution>::err(to_dp_string("Only did:web and did:key are supported by Resolver"));
+                return DidResult<Resolution>::err(error::unsupported_method(parsed.value().method.data()));
             }
 
             auto doc_url = did_web_document_url(did_uri);
@@ -50,11 +50,11 @@ namespace authbox::did {
             }
 
             if (options.require_https && !std::string_view(doc_url.value()).starts_with("https://")) {
-                return DidResult<Resolution>::err(to_dp_string("did:web document URL must use https"));
+                return DidResult<Resolution>::err(error::https_required());
             }
 
             if (!fetcher_) {
-                return DidResult<Resolution>::err(to_dp_string("Resolver fetcher is not configured"));
+                return DidResult<Resolution>::err(error::fetcher_not_configured());
             }
 
             auto fetched = fetcher_(doc_url.value());

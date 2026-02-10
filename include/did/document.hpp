@@ -61,12 +61,11 @@ namespace authbox::did {
         inline DidResult<dp::String> parse_required_string_field(const json_object_t *obj, std::string_view key) {
             json_value_t *value = find_object_field(obj, key);
             if (!value) {
-                return DidResult<dp::String>::err(to_dp_string(std::string("Missing field: ") + std::string(key)));
+                return DidResult<dp::String>::err(error::missing_field(key));
             }
             const auto *text = json_value_as_string(value);
             if (!text) {
-                return DidResult<dp::String>::err(
-                    to_dp_string(std::string("Field is not a string: ") + std::string(key)));
+                return DidResult<dp::String>::err(error::field_not_string(key));
             }
             return DidResult<dp::String>::ok(to_dp_string(json_string_view(text)));
         }
@@ -128,7 +127,7 @@ namespace authbox::did {
         json_value_t *root =
             json_parse_ex(json_text.data(), json_text.size(), json_parse_flags_default, nullptr, nullptr, &result);
         if (!root) {
-            return DidResult<DidDocument>::err(to_dp_string("Invalid DID document JSON"));
+            return DidResult<DidDocument>::err(error::invalid_document_json("parse failed"));
         }
 
         const auto cleanup = [&]() { std::free(root); };
@@ -136,7 +135,7 @@ namespace authbox::did {
         const auto *root_obj = json_value_as_object(root);
         if (!root_obj) {
             cleanup();
-            return DidResult<DidDocument>::err(to_dp_string("DID document root must be an object"));
+            return DidResult<DidDocument>::err(error::invalid_document_json("root must be an object"));
         }
 
         DidDocument out{};
@@ -160,7 +159,8 @@ namespace authbox::did {
         const auto *vm_array = json_value_as_array(vm_value);
         if (!vm_array || vm_array->length == 0U) {
             cleanup();
-            return DidResult<DidDocument>::err(to_dp_string("verificationMethod must be a non-empty array"));
+            return DidResult<DidDocument>::err(
+                error::invalid_document_json("verificationMethod must be a non-empty array"));
         }
 
         out.verification_methods.reserve(vm_array->length);
@@ -168,7 +168,7 @@ namespace authbox::did {
             const auto *vm_obj = json_value_as_object(elem->value);
             if (!vm_obj) {
                 cleanup();
-                return DidResult<DidDocument>::err(to_dp_string("verificationMethod entries must be objects"));
+                return DidResult<DidDocument>::err(error::invalid_verification_method("entries must be objects"));
             }
 
             VerificationMethod vm{};
@@ -177,7 +177,7 @@ namespace authbox::did {
             auto vm_controller = detail::parse_required_string_field(vm_obj, "controller");
             if (vm_id.is_err() || vm_type.is_err() || vm_controller.is_err()) {
                 cleanup();
-                return DidResult<DidDocument>::err(to_dp_string("Invalid verificationMethod entry"));
+                return DidResult<DidDocument>::err(error::invalid_verification_method("missing required fields"));
             }
 
             vm.id = vm_id.value();
@@ -187,7 +187,7 @@ namespace authbox::did {
             const auto *jwk_obj = json_value_as_object(detail::find_object_field(vm_obj, "publicKeyJwk"));
             if (!jwk_obj) {
                 cleanup();
-                return DidResult<DidDocument>::err(to_dp_string("verificationMethod.publicKeyJwk is required"));
+                return DidResult<DidDocument>::err(error::invalid_verification_method("publicKeyJwk is required"));
             }
             auto jwk = detail::parse_jwk(jwk_obj);
             if (jwk.is_err()) {
@@ -207,19 +207,19 @@ namespace authbox::did {
     }
 
     inline DidResult<bool> validate_document(const DidDocument &document, std::string_view expected_did_uri) {
-        if (std::string_view(document.id.data(), document.id.size()) != expected_did_uri) {
-            return DidResult<bool>::err(to_dp_string("DID document id mismatch"));
+        const std::string_view actual_id(document.id.data(), document.id.size());
+        if (actual_id != expected_did_uri) {
+            return DidResult<bool>::err(error::document_id_mismatch(expected_did_uri, actual_id));
         }
 
         if (document.verification_methods.empty()) {
-            return DidResult<bool>::err(to_dp_string("DID document has no verificationMethod"));
+            return DidResult<bool>::err(error::no_verification_methods());
         }
 
         bool has_relationship =
             !document.authentication.empty() || !document.assertion_method.empty() || !document.key_agreement.empty();
         if (!has_relationship) {
-            return DidResult<bool>::err(
-                to_dp_string("DID document requires authentication/assertionMethod/keyAgreement"));
+            return DidResult<bool>::err(error::no_verification_relationships());
         }
 
         return DidResult<bool>::ok(true);
