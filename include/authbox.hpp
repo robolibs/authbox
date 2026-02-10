@@ -4,6 +4,7 @@
 
 #include <did/did.hpp>
 #include <did/document.hpp>
+#include <did/jwk.hpp>
 #include <did/key.hpp>
 #include <did/resolver.hpp>
 #include <did/rpc.hpp>
