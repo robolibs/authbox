@@ -52,7 +52,19 @@ namespace cert_test {
     inline authbox::pik::Certificate make_self_signed_certificate_with_key(const authbox::pik::DistinguishedName &dn,
                                                                            const keylock::crypto::Context::KeyPair &key,
                                                                            uint64_t serial) {
-        return make_certificate(dn, dn, key, key, true, authbox::pik::KeyUsageExtension::KeyCertSign, serial);
+        using namespace std::chrono;
+        authbox::pik::CertificateBuilder builder;
+        const auto base_time = fixed_time();
+        builder.set_serial(serial)
+            .set_subject(dn)
+            .set_issuer(dn)
+            .set_validity(base_time - hours(1), base_time + hours(24))
+            .set_subject_public_key_ed25519(key.public_key)
+            .set_key_usage(authbox::pik::KeyUsageExtension::KeyCertSign)
+            .set_basic_constraints(true, std::nullopt, true);
+        auto result = builder.build_ed25519(key, true);
+        REQUIRE(result.success);
+        return result.value;
     }
 
     inline std::tuple<authbox::pik::Certificate, authbox::pik::Certificate, authbox::pik::Certificate>

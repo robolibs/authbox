@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.3] - 2026-02-10
+
+### <!-- 0 -->⛰️  Features
+
+- Add DID Web resolver using Netpipe HTTP/1.1 client
+
 ## [0.0.2] - 2026-02-10
 
 ### <!-- 0 -->⛰️  Features

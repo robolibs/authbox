@@ -7,6 +7,7 @@
 #include <did/key.hpp>
 #include <did/resolver.hpp>
 #include <did/rpc.hpp>
+#include <did/web_fetch_netpipe.hpp>
 #include <did/x509.hpp>
 #include <pki/pki.hpp>
 
