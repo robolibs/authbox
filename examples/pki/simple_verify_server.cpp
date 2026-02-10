@@ -12,8 +12,8 @@
  */
 
 #include <iostream>
+#include <keylock/crypto/ed25519/ed25519.hpp>
 #include <keylock/crypto/rng/randombytes.hpp>
-#include <keylock/crypto/sign_ed25519/ed25519.hpp>
 #include <keylock/keylock.hpp>
 #include <pki/builder.hpp>
 #include <pki/verify/server.hpp>

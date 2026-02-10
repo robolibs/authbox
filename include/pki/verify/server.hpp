@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include <keylock/crypto/sign_ed25519/ed25519.hpp>
+#include <keylock/crypto/ed25519/ed25519.hpp>
 #include <pki/certificate.hpp>
 #include <pki/verify/wire_format.hpp>
 
