@@ -12,11 +12,30 @@
 
 namespace authbox::did {
 
+    // Resolution metadata as per DID Core spec
+    struct ResolutionMetadata {
+        dp::String error;        // Error message if resolution failed
+        dp::String content_type; // Content type of the resolved document
+        dp::String duration;     // Time taken to resolve (optional)
+    };
+
+    // Document metadata as per DID Core spec
+    struct DocumentMetadata {
+        dp::String created;         // Timestamp when DID was created (ISO 8601)
+        dp::String updated;         // Timestamp when DID was last updated (ISO 8601)
+        bool deactivated{false};    // Whether the DID has been deactivated
+        dp::String next_update;     // Timestamp when next update is expected (optional)
+        dp::String version_id;      // Version identifier (optional)
+        dp::String next_version_id; // Next version identifier (optional)
+    };
+
     struct Resolution {
         Did did;
         DidDocument document;
-        dp::String source_url;
-        dp::String raw_document_json;
+        dp::String source_url;        // Legacy field - kept for backward compatibility
+        dp::String raw_document_json; // Legacy field - kept for backward compatibility
+        ResolutionMetadata resolution_metadata;
+        DocumentMetadata document_metadata;
     };
 
     using FetchDidDocumentFn = std::function<DidResult<std::string>(std::string_view url)>;
@@ -86,6 +105,14 @@ namespace authbox::did {
             out.document = std::move(document.value());
             out.source_url = to_dp_string(source_url);
             out.raw_document_json = to_dp_string(document_json);
+
+            // Populate resolution metadata
+            out.resolution_metadata.content_type = to_dp_string("application/did+ld+json");
+
+            // Document metadata - populate from document if available
+            // For now, leave metadata fields empty as we don't track these yet
+            // Individual DID methods can populate these fields in their handlers
+
             return DidResult<Resolution>::ok(std::move(out));
         }
 
