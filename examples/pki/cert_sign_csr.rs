@@ -42,10 +42,10 @@ fn make_sample_csr(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let ca_key = authbox::keylock::generate_ed25519_keypair()?;
+    let ca_key = keylock::generate_ed25519_keypair()?;
     let ca_cert = make_ca(&ca_key).into_result()?;
 
-    let leaf_key = authbox::keylock::generate_ed25519_keypair()?;
+    let leaf_key = keylock::generate_ed25519_keypair()?;
     let csr = make_sample_csr(&leaf_key)?;
 
     let issued = CertificateBuilder::new()

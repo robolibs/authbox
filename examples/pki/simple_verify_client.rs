@@ -1,4 +1,4 @@
-use authbox::keylock::generate_ed25519_keypair;
+use keylock::generate_ed25519_keypair;
 use authbox::pki::{
     Certificate, CertificateBuilder, DerTime, DistinguishedName, Verifier, VerifyStatus,
 };

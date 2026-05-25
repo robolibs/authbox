@@ -16,7 +16,7 @@ fn to_hex(bytes: &[u8]) -> String {
 }
 
 fn fallback_certificate() -> Result<Certificate, Box<dyn std::error::Error>> {
-    let keypair = authbox::keylock::generate_ed25519_keypair()?;
+    let keypair = keylock::generate_ed25519_keypair()?;
     Ok(CertificateBuilder::new()
         .set_subject_from_string("CN=On-The-Fly Cert,O=keylock")?
         .set_subject_public_key_ed25519(keypair.public_key.clone())

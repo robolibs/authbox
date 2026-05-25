@@ -57,7 +57,7 @@ fn make_certificate(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root_key = authbox::keylock::generate_ed25519_keypair()?;
+    let root_key = keylock::generate_ed25519_keypair()?;
     let root_cert = make_certificate(
         "CN=keylock Root CA,O=keylock",
         &root_key,
@@ -68,7 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .into_result()?;
 
-    let intermediate_key = authbox::keylock::generate_ed25519_keypair()?;
+    let intermediate_key = keylock::generate_ed25519_keypair()?;
     let intermediate_cert = make_certificate(
         "CN=keylock Intermediate CA,O=keylock",
         &intermediate_key,
@@ -79,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .into_result()?;
 
-    let leaf_key = authbox::keylock::generate_ed25519_keypair()?;
+    let leaf_key = keylock::generate_ed25519_keypair()?;
     let leaf_cert = make_certificate(
         "CN=Leaf Service,O=keylock",
         &leaf_key,

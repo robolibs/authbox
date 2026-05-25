@@ -7,10 +7,10 @@ and an in-process certificate verification service.
 
 **Crypto boundary.** Every cryptographic primitive — keygen, signing, verifying,
 hashing, AEAD, RNG — lives in the sibling [`keylock`](../keylock) crate. authbox
-itself contains only PKI / DID / JSON framing. Call
-`keylock::generate_*_keypair()` for keys, `keylock::keccak256` /
-`keylock::hash::*` for hashes, and `keylock::crypto::*` for everything else.
-`authbox::keylock` is the same crate re-exported for one-import convenience.
+itself contains only PKI / DID / JSON framing. Always import primitives from
+`keylock` directly: `keylock::generate_*_keypair()` for keys,
+`keylock::keccak256` / `keylock::hash::*` for hashes, and `keylock::crypto::*`
+for everything else.
 
 ```text
 authbox  ──depends on──>  ../keylock
@@ -36,7 +36,7 @@ authbox = { path = "../authbox" }
 ### Generate and sign a self-signed Ed25519 certificate
 
 ```rust
-use authbox::keylock::generate_ed25519_keypair;
+use keylock::generate_ed25519_keypair;
 use authbox::pki::{CertificateBuilder, DerTime, key_usage};
 
 let key = generate_ed25519_keypair()?;
@@ -58,7 +58,7 @@ println!("{}", cert.to_pem());
 
 ```rust
 use authbox::did::{encode_ed25519_did_key, parse_did_key, resolve_did_key_document_json};
-use authbox::keylock::generate_ed25519_keypair;
+use keylock::generate_ed25519_keypair;
 
 let key = generate_ed25519_keypair()?;
 let public: [u8; 32] = key.public_key.as_slice().try_into()?;

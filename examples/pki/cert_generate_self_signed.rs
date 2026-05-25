@@ -12,7 +12,7 @@ fn example_time(year: i32) -> DerTime {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let subject_key = authbox::keylock::generate_ed25519_keypair()?;
+    let subject_key = keylock::generate_ed25519_keypair()?;
 
     let certificate = CertificateBuilder::new()
         .set_subject_from_string("CN=keylock Self-Signed,O=keylock,C=US")?

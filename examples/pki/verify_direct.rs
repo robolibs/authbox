@@ -12,7 +12,7 @@ fn example_time(year: i32) -> DerTime {
 }
 
 fn generated_certificate() -> Result<Certificate, Box<dyn std::error::Error>> {
-    let keys = authbox::keylock::generate_ed25519_keypair()?;
+    let keys = keylock::generate_ed25519_keypair()?;
     Ok(CertificateBuilder::new()
         .set_subject_from_string("CN=Local Verification Demo")?
         .set_issuer_from_string("CN=Local Verification Demo")?

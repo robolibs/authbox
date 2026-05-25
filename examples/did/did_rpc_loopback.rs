@@ -17,7 +17,7 @@ fn example_time(year: i32) -> DerTime {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let did_uri = "did:web:example.com";
-    let keypair = authbox::keylock::generate_ed25519_keypair()?;
+    let keypair = keylock::generate_ed25519_keypair()?;
     let did_name = GeneralName {
         type_: GeneralNameType::Uri,
         value: did_uri.as_bytes().to_vec(),

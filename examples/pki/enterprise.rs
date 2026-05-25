@@ -51,7 +51,7 @@ fn build_ca_with_extensions(
     path_length: u32,
     extensions: Vec<RawExtension>,
 ) -> Result<Certificate, Box<dyn std::error::Error>> {
-    let keypair = authbox::keylock::generate_ed25519_keypair()?;
+    let keypair = keylock::generate_ed25519_keypair()?;
     let mut builder = CertificateBuilder::new()
         .set_serial_u64(serial)
         .set_subject_from_string(subject)?
