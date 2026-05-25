@@ -3,20 +3,23 @@
 Pure-Rust PKI and DID toolkit, translated from `robolibs_cpp/authbox`. Provides
 X.509 certificate / CSR / CRL build-parse-verify, a DID resolver with built-in
 `did:key`, `did:jwk`, `did:dns`, `did:peer`, `did:pkh`, and `did:web` methods,
-and an in-process certificate verification service. All cryptographic
-primitives (keygen, signing, hashing, AEAD) live in the sibling
-[`keylock`](../keylock) crate; authbox itself focuses on PKI, DID, and JSON
-helpers. Call `keylock::generate_*_keypair()` for keys and
-`keylock::keccak256()` / `keylock::hash::*` for hashes — `authbox::keylock` is
-the same crate re-exported for convenience.
+and an in-process certificate verification service.
+
+**Crypto boundary.** Every cryptographic primitive — keygen, signing, verifying,
+hashing, AEAD, RNG — lives in the sibling [`keylock`](../keylock) crate. authbox
+itself contains only PKI / DID / JSON framing. Call
+`keylock::generate_*_keypair()` for keys, `keylock::keccak256` /
+`keylock::hash::*` for hashes, and `keylock::crypto::*` for everything else.
+`authbox::keylock` is the same crate re-exported for one-import convenience.
 
 ```text
 authbox  ──depends on──>  ../keylock
   │                            │
-  ├─ pki/                      ├─ crypto/  (Ed25519, ECDSA, RSA, X25519,
-  ├─ did/                      │           secp256k1, AEAD, SecretBox, RNG)
-  ├─ json/                     ├─ hash/    (SHA-2/3, BLAKE2, KMAC, HKDF, HMAC)
-  └─ io/                       └─ kdf/     (Argon2)
+  ├─ pki/                      ├─ crypto/  (Ed25519, Ed448, ECDSA P-256/384/521,
+  ├─ did/                      │            secp256k1, RSA, X25519, AEAD, RNG)
+  ├─ json/                     ├─ hash/    (SHA-2/3, BLAKE2, KMAC, HKDF, HMAC,
+  └─ io/                       │            Keccak-256, SHAKE, KMAC, …)
+                               └─ kdf/     (Argon2)
 ```
 
 The C++ tree stays checked in under `xtra/authbox/` as the translation source.
@@ -93,18 +96,24 @@ println!("{}", resolved.raw_document_json);
   codec, Ed25519-signed responses, processor-failure catch boundary.
 - Key utilities: SPKI encode/decode for every supported curve, SEC1
   encode/decode for P-256/P-384/P-521, PKCS#8 + PEM `ENCRYPTED PRIVATE KEY`
-  helpers via the `pkcs8` crate, RSA PKCS#1 ↔ PKCS#8 conversions, keygen
-  backed by `rsa` and `getrandom`.
+  helpers via the `pkcs8` crate, RSA PKCS#1 ↔ PKCS#8 conversions. Keygen
+  itself is delegated to keylock; `authbox::pki::generate_*_keypair` is a
+  thin shim around `keylock::generate_*_keypair` and `authbox::pki::KeyPair`
+  is a re-export of `keylock::crypto::KeyPair`.
 
 **DID (`authbox::did`)**
 
 - `parse`, `parse_url`, dereferencing, document parsing and validation.
 - Built-in methods: `did:key`, `did:jwk`, `did:dns` (with DNSSEC filtering),
-  `did:peer`, `did:pkh` (with Ethereum-signature recovery), `did:web`.
+  `did:peer`, `did:pkh` (with Ethereum-signature recovery through
+  `keylock::keccak256` + secp256k1), `did:web`.
 - `Resolver` with a method registry and a pluggable fetcher.
 - DID-RPC JSON codecs with loopback service and client.
 - `did:web` certificate binding (SAN ↔ DID URI), DID-document generation from
   X.509 certificates.
+- No DID-side crypto: `did/` modules never reach into `authbox::pki` for
+  primitives; everything they need (Ed25519 keygen, keccak256, secp256k1
+  recovery) comes from keylock.
 
 **JSON (`authbox::json`)**
 
@@ -174,13 +183,13 @@ examples above. CI runs fmt, clippy, the full test matrix, doc builds, and
 
 ## Security
 
-- RSA primitives come from the pure-Rust `rsa` crate, which carries an
-  unpatched timing sidechannel (RUSTSEC-2023-0071, "Marvin Attack"). authbox
-  uses RSA primarily for signing and verification, where attacker-controlled
-  decryption inputs do not apply. Callers that decrypt attacker-controlled RSA
-  OAEP ciphertexts should treat the timing leak as a residual risk. CI ignores
-  this single advisory; all other `cargo audit` / `cargo deny` advisories are
-  enforced.
+- RSA primitives ultimately come from the pure-Rust `rsa` crate (via keylock),
+  which carries an unpatched timing sidechannel (RUSTSEC-2023-0071, "Marvin
+  Attack"). authbox uses RSA primarily for signing and verification, where
+  attacker-controlled decryption inputs do not apply. Callers that decrypt
+  attacker-controlled RSA-OAEP ciphertexts should treat the timing leak as a
+  residual risk. CI ignores this single advisory; all other `cargo audit` /
+  `cargo deny` advisories are enforced.
 - DER/ASN.1 parsing rejects indefinite lengths, overflowing long-form lengths,
   and value lengths that exceed the input buffer.
 - DID document fetch enforces a max response size, disables redirect following
