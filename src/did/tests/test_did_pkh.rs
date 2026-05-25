@@ -1,6 +1,6 @@
 use super::super::*;
-use crate::keylock::crypto::Context;
 use k256::ecdsa::{RecoveryId, Signature, SigningKey, signature::hazmat::PrehashSigner};
+use keylock::crypto::Context;
 
 const ETH_MAINNET: &str = "did:pkh:eip155:1:0xab16a96d359ec26a11e2c2b3d8f8b8942d5bfcdb";
 const POLYGON: &str = "did:pkh:eip155:137:0x1234567890123456789012345678901234567890";

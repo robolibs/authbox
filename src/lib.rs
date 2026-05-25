@@ -10,7 +10,6 @@ pub mod json;
 pub mod io;
 
 pub mod did;
-pub use keylock;
 pub mod pki;
 
 /// Compatibility namespace mirroring the C++ primary `authbox::pik` namespace.

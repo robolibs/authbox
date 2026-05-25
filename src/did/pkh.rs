@@ -1,5 +1,5 @@
 use super::{DidResult, error, parse};
-use crate::keylock::crypto::{Context, secp256k1};
+use keylock::crypto::{Context, secp256k1};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PkhComponents {
