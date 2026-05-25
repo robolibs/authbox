@@ -1,0 +1,9 @@
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071: Marvin Attack timing sidechannel in the pure-Rust `rsa` crate.
+    # No upstream fix is available. Pure-Rust PKI requires this crate; we mitigate
+    # by using it primarily for signing/verification (deterministic, no
+    # attacker-controlled decryption) and document the residual risk for OAEP
+    # decryption callers in README.md.
+    "RUSTSEC-2023-0071",
+]

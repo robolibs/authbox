@@ -1,4 +1,4 @@
-name: book
+name: docs
 
 on:
   push:
@@ -10,25 +10,29 @@ permissions:
   contents: write
 
 concurrency:
-  group: book-pages
+  group: rustdoc-pages
   cancel-in-progress: true
 
 jobs:
   deploy_site:
     runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup mdBook
-        uses: peaceiris/actions-mdbook@v1
-        with:
-          mdbook-version: 'latest'
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Build book
-        run: mdbook build book --dest-dir docs
+      - uses: Swatinem/rust-cache@v2
 
-      - name: Deploy
+      - name: Build Rust API docs
+        run: make docs
+
+      - name: Add GitHub Pages nojekyll marker
+        run: touch target/doc/.nojekyll
+
+      - name: Deploy Rust API docs
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
+          publish_dir: ./target/doc

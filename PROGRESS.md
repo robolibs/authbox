@@ -1,0 +1,498 @@
+# authbox Rust translation progress
+
+## Source of truth
+
+- C++ source being translated: `/home/bresilla/data/code/robolibs_cpp/authbox`
+- Local vendored reference: `xtra/authbox`
+- Rust target crate: `/home/bresilla/data/code/robolibs/authbox`
+
+## Completed in current Rust crate
+
+- Added a Rust crate skeleton (`Cargo.toml`, `src/lib.rs`) and now uses Cargo ecosystem crates where they are a better fit than hand-ported C internals.
+- Extracted keylock out of `authbox/src/keylock` into sibling crate `/home/bresilla/data/code/robolibs/keylock`.
+  - `authbox` now depends on it with `keylock = { path = "../keylock" }` and re-exports it from `src/lib.rs`.
+  - Current crate boundary is intentional: `../keylock` owns keylock crypto/hash/KDF/context helpers; `authbox` keeps PKI, DID, and JSON.
+  - `../keylock` has no `#[path = "../../authbox/..."]` imports, no copied PKI tree, and no JSON parser wrapper.
+  - The sibling `keylock` crate now provides the completed crate-backed `keylock::crypto::Context` surface, including symmetric AEAD/SecretBox, X25519 sealed box, Ed25519, ECDSA P-256, RSA OAEP/sign/verify/keygen/import-export helpers, secp256k1 helpers, RNG, key-file/DER/PEM helpers, hashes/HMAC/HKDF/KMAC, Argon2, and legacy hash helpers without depending back on authbox PKI/DID/JSON.
+  - Keylock-owned tests now live in `../keylock/tests/` as integration tests against public `keylock::...` APIs, so boundary leaks back into authbox PKI/DID/JSON fail at compile time.
+- Source layout now follows the C++ `/home/bresilla/data/code/robolibs_cpp/authbox/include` hierarchy instead of dumping the port into giant files:
+  - `src/lib.rs`
+  - `src/tests.rs`
+  - `src/did/error.rs`
+  - `src/did/errors.rs`
+  - `src/did/did.rs`
+  - `src/did/document.rs`
+  - `src/did/options.rs`
+  - `src/did/key.rs`
+  - `src/did/jwk.rs`
+  - `src/did/dns.rs`
+  - `src/did/peer.rs`
+  - `src/did/pkh.rs`
+  - `src/did/method_registry.rs`
+  - `src/did/resolver.rs`
+  - `src/did/dereference.rs`
+  - `src/did/privacy.rs`
+  - `src/did/security.rs`
+  - `src/did/rpc.rs`
+  - `src/did/web_fetch.rs`
+  - `src/did/x509.rs`
+  - `src/json.rs`
+  - `../keylock/src/lib.rs`
+  - `../keylock/src/compat.rs`
+  - `../keylock/src/crypto/common.rs`
+  - `../keylock/src/crypto/aead_aes256gcm.rs`
+  - `../keylock/src/crypto/aead_chacha20poly1305_ietf.rs`
+  - `../keylock/src/crypto/aead_xchacha20poly1305_ietf.rs`
+  - `../keylock/src/crypto/aes.rs`
+  - `../keylock/src/crypto/box_seal_x25519.rs`
+  - `../keylock/src/crypto/chacha20.rs`
+  - `../keylock/src/crypto/constant_time/mod.rs`
+  - `../keylock/src/crypto/constant_time/verify.rs`
+  - `../keylock/src/crypto/constant_time/wipe.rs`
+  - `../keylock/src/crypto/mod.rs`
+  - `../keylock/src/crypto/context.rs`
+  - `../keylock/src/crypto/ecdsa_p256.rs`
+  - `../keylock/src/crypto/ed25519.rs`
+  - `../keylock/src/crypto/elligator.rs`
+  - `../keylock/src/crypto/poly1305.rs`
+  - `../keylock/src/crypto/rng.rs`
+  - `../keylock/src/crypto/rsa.rs`
+  - `../keylock/src/crypto/secp256k1.rs`
+  - `../keylock/src/crypto/secretbox_xsalsa20poly1305.rs`
+  - `../keylock/src/hash/mod.rs`
+  - `../keylock/src/hash/sha256.rs`
+  - `../keylock/src/hash/sha512.rs`
+  - `../keylock/src/hash/keccak.rs`
+  - `../keylock/src/hash/sha3.rs`
+  - `../keylock/src/hash/shake.rs`
+  - `../keylock/src/hash/blake2s.rs`
+  - `../keylock/src/hash/blake2b.rs`
+  - `../keylock/src/hash/blake2x.rs`
+  - `../keylock/src/hash/generichash/mod.rs`
+  - `../keylock/src/hash/generichash/blake2b_keyed.rs`
+  - `../keylock/src/hash/hmac/mod.rs`
+  - `../keylock/src/hash/hmac/hmac_blake2b.rs`
+  - `../keylock/src/hash/hmac/hmac_sha256.rs`
+  - `../keylock/src/hash/hmac/hmac_sha384.rs`
+  - `../keylock/src/hash/hmac/hmac_sha512.rs`
+  - `../keylock/src/hash/hkdf/mod.rs`
+  - `../keylock/src/hash/hkdf/hkdf_sha256.rs`
+  - `../keylock/src/hash/hkdf/hkdf_sha384.rs`
+  - `../keylock/src/hash/hkdf/hkdf_sha512.rs`
+  - `../keylock/src/hash/kmac.rs`
+  - `../keylock/src/hash/legacy/mod.rs`
+  - `../keylock/src/hash/legacy/sm3.rs`
+  - `../keylock/src/hash/legacy/streebog.rs`
+  - `../keylock/src/hash/legacy/whirlpool.rs`
+  - `../keylock/src/hash/skein.rs`
+  - `../keylock/src/kdf/argon2.rs`
+  - `../keylock/src/kdf/mod.rs`
+  - `../keylock/tests/aead_vectors.rs`
+  - `../keylock/tests/aes_vectors.rs`
+  - `../keylock/tests/argon2_vectors.rs`
+  - `../keylock/tests/asymmetric_primitives.rs`
+  - `../keylock/tests/compat_surface.rs`
+  - `../keylock/tests/context_boundary.rs`
+  - `../keylock/tests/crypto_primitives.rs`
+  - `../keylock/tests/elligator.rs`
+  - `../keylock/tests/extra_primitives.rs`
+  - `../keylock/tests/hash_primitives.rs`
+  - `../keylock/tests/hash_vectors.rs`
+  - `../keylock/tests/key_format.rs`
+  - `../keylock/tests/known_answer_vectors.rs`
+  - `../keylock/tests/secondary_hash_vectors.rs`
+  - `../keylock/tests/signature_vectors.rs`
+  - `src/did/tests/test_did_document.rs`
+  - `src/did/tests/test_did_dereference.rs`
+  - `src/did/tests/test_did_dns.rs`
+  - `src/did/tests/test_did_errors.rs`
+  - `src/did/tests/test_did_jwk.rs`
+  - `src/did/tests/test_did_key.rs`
+  - `src/did/tests/test_did_metadata.rs`
+  - `src/did/tests/test_did_method_registry.rs`
+  - `src/did/tests/test_did_options.rs`
+  - `src/did/tests/test_did_peer.rs`
+  - `src/did/tests/test_did_pkh.rs`
+  - `src/did/tests/test_did_privacy.rs`
+  - `src/did/tests/test_did_privacy_security.rs`
+  - `src/did/tests/test_did_resolver_rpc.rs`
+  - `src/did/tests/test_did_security.rs`
+  - `src/did/tests/test_did_service.rs`
+  - `src/did/tests/test_did_web_fetch.rs`
+  - `src/pki/asn1_common.rs`
+  - `src/pki/asn1_utils.rs`
+  - `src/pki/asn1_writer.rs`
+  - `src/pki/parser_utils.rs`
+  - `src/pki/pem.rs`
+  - `src/pki/oid_registry.rs`
+  - `src/pki/distinguished_name.rs`
+  - `src/pki/parser.rs`
+  - `src/pki/certificate.rs`
+  - `src/pki/builder.rs`
+  - `src/pki/files.rs`
+  - `src/pki/csr.rs`
+  - `src/pki/csr_builder.rs`
+  - `src/pki/crl.rs`
+  - `src/pki/crl_builder.rs`
+  - `src/pki/verify/wire_format.rs`
+  - `src/pki/verify/transport.rs`
+  - `src/pki/verify/server.rs`
+  - `src/pki/verify/direct_transport.rs`
+  - `src/pki/verify/client.rs`
+  - `src/pki/trust_store.rs`
+  - `src/pki/key_utils.rs`
+  - `src/pki/random.rs`
+  - `src/pki/key_exchange.rs`
+  - `src/pki/hash.rs`
+  - `src/pki/ed25519.rs`
+  - `src/pki/ecdsa.rs`
+  - `src/pki/signature.rs`
+  - `src/pki/rsa.rs`
+  - `src/pki/pki.rs`
+  - `src/pki/tests/helpers.rs`
+  - `src/pki/tests/test_cert_asn1.rs`
+  - `src/pki/tests/test_cert_chain.rs`
+  - `src/pki/tests/test_cert_crl.rs`
+  - `src/pki/tests/test_cert_csr.rs`
+  - `src/pki/tests/test_cert_enterprise_extensions.rs`
+  - `src/pki/tests/test_cert_extensions.rs`
+  - `src/pki/tests/test_cert_extended_key_usage.rs`
+  - `src/pki/tests/test_cert_generation.rs`
+  - `src/pki/tests/test_cert_integration.rs`
+  - `src/pki/tests/test_cert_keys.rs`
+  - `src/pki/tests/test_cert_oid.rs`
+  - `src/pki/tests/test_cert_parser.rs`
+  - `src/pki/tests/test_cert_pem.rs`
+  - `src/pki/tests/test_cert_signature_algorithms.rs`
+  - `src/pki/tests/test_cert_trust_store.rs`
+  - `src/pki/tests/test_cert_utils.rs`
+  - `src/pki/tests/test_cert_validation.rs`
+  - `src/pki/tests/test_cert_vectors.rs`
+  - `src/pki/tests/test_hostname_verification.rs`
+  - `src/pki/tests/test_trust_store_system.rs`
+  - `src/pki/tests/test_verify_wire_format.rs`
+  - `src/pki/tests/test_verify_server.rs`
+- Implemented first-pass DID subsystem under `src/did/`:
+  - C++-surface DID error helpers, including the C++ empty-detail `network_error` formatting, `InvalidMethodSpecificId` error-code compatibility, and legacy `is_supported_method` behavior.
+  - `src/did/errors.rs` now mirrors the plural C++ `include/did/errors.hpp` path as a thin compatibility module over the existing Rust implementation in `src/did/error.rs`, so the file hierarchy has a one-to-one public module anchor without duplicating the internals.
+  - C++ `did::to_dp_string` helper surface.
+  - DID and DID URL parsing.
+  - `did:web` document URL conversion, including C++-matching empty path segment preservation.
+  - Shared JSON parser/serializer used by DID documents and JWK canonicalization, with strict default parsing/writing through `serde_json` and opt-in JSON5-shaped permissive parsing through `json5`.
+  - DID document model, parser, policy checks, and validation, including C++-matching required `publicKeyJwk` string fields (`kty`, `crv`, `x`) when a JWK verification method is present.
+  - Base58btc and base64url helpers now delegate to `bs58` and `base64ct` while keeping the local C++-surface helper names in `src/did/key.rs` and `src/did/detail.rs`.
+  - `did:key` parse/encode/resolve plus C++ value-initialized aggregate default parity for `DidKeyInfo`.
+  - `did:jwk` encode/parse/resolve with deterministic key ordering for string fields.
+  - The shared C++ `authbox::did::detail` helper namespace is exposed from `src/did/detail.rs` for the key/JWK/x509/document helper surface while the concrete implementations stay in their matching DID modules.
+  - `did:dns` parser, TXT query-domain helper, callback-based document resolution helper, DNSSEC filtering, C++ aggregate default parity for TXT records, `create_dns_handler`, and `Resolver::with_dns_lookup` wiring.
+  - `did:peer:2` parser/key decode/resolve, including service elements emitted into DID document `service` entries, C++ value-initialized aggregate default parity for `PeerElement`, and C++-matching second-pass relationship reference numbering for skipped invalid V/E keys.
+  - `did:peer` key decoding now preserves the C++ empty-encoded-key error branch before checking the multibase prefix.
+  - `did:pkh` CAIP-10 parser/account helper/chain naming/document generation plus C++ aggregate default parity for `PkhComponents`; Ethereum `personal_sign`-style signature verification now uses the Rust keylock secp256k1/Keccak helpers instead of preserving the C++ placeholder.
+  - Method registry, resolver, metadata structs, and DID URL dereferencing, including C++ default `ResolveOptions` surfaces for resolver/document/dereference resolution plus explicit `*_with_options` Rust variants, plus C++ default resolver-constructor parity via `Resolver::new()` with no fetcher and `Resolver::with_optional_fetcher` for the explicit optional-fetcher path.
+  - Method registry now has C++-surface-style handler alias, global/get_global registry access, default `ResolveOptions` resolution helpers, method policy enforcement, document-size limit enforcement, and resolver construction with a custom registry while preserving built-in registrations.
+  - DID document service parsing preserves string/object/array/scalar `serviceEndpoint` values as compact real JSON through the shared crate-backed serializer instead of preserving the old C++ placeholder/null and no-escape serialization quirks.
+  - Dereference helpers now include C++-surface-style `is_*` predicates plus `get_document`, `get_service`, and `get_verification_method` accessors.
+  - C++-surface DID privacy PII/correlation scans and C++-surface DID security cryptographic-strength scans.
+  - DID x509 helpers can generate `did:web` documents from raw keys or certificates and verify certificate/DID document bindings, including C++ default `#0` key-fragment behavior and C++ raw-message parity for domain/key-format/SAN/binding failures.
+  - DID RPC now has JSON payload codecs, the C++ `authbox::did::rpc::detail` codec helper surface, service dispatch, loopback remote/client support, C++ default DID-document/timeout resolve client surface, resolve handling, and certificate binding verification.
+  - DID web fetch now has pure Rust HTTP/1.1 URL parsing in `src/did/web_fetch.rs`, including the C++ `std::stoi`-style permissive port parsing behavior, an `authbox::did::detail` URL helper/default surface for web-fetch helpers, `WebFetchOptions`/`make_web_http11_resolver`/`fetch_did_document_http11` APIs, insecure-HTTP policy enforcement, TCP GET transport for caller-allowed `http://` URLs, `httparse`-backed response header parsing, Content-Length and chunked body decoding, max-size enforcement, and HTTPS/TLS fetches through the Rust `reqwest`/rustls ecosystem. The C++ netpipe transport is intentionally not ported and no netpipe-named compatibility surface is kept.
+  - `did:key` test coverage now mirrors the C++ generated-keypair flow and resolver inline behavior without requiring a network fetcher, plus C++-named `DidKeyType::ED25519`/`X25519` constants.
+  - DID C++ parity tests are split under `src/did/tests/` by original test topic instead of piling new coverage into the central DID test module; `src/did/tests.rs` now only imports the DID surface, declares same-topic modules, and keeps the shared service-document fixture.
+  - Added `test_did_document` parity coverage for did:web URL conversion including empty-segment preservation, DID parser smoke tests from the top-level doctest file, DID document parse/validate, capabilityInvocation/capabilityDelegation relationship parsing, C++-matching parse-failure and missing-`verificationMethod` errors, C++-required publicKeyJwk field validation, did:web document generation plus certificate binding verification from an Ed25519 certificate, C++ default/custom key-fragment x509 helper behavior, and C++ raw-message x509 helper/binding failures.
+  - Added `test_did_dereference` parity coverage for whole-document dereference, C++ default-options dereference surface plus explicit options variant, local/absolute verification-method fragments, missing fragments, DID URL path/query/fragment parsing, and did:key dereference.
+  - Added `test_did_dns` parity coverage for valid/invalid did:dns parsing, TXT query names, C++ `DnsTxtRecord` aggregate defaults, mocked TXT document resolution, valid arbitrary JSON TXT acceptance through the shared JSON gate, original TXT JSON value preservation without trimming, mixed non-JSON/TXT fallback behavior, missing/empty/non-JSON TXT failures, DNSSEC filtering, resolver integration, and `Resolver::with_dns_lookup` wiring.
+  - Added `test_did_errors` parity coverage for C++-surface error helper messages, C++-named `DidErrorCode` constants, and legacy supported-method behavior.
+  - Added `test_did_detail` parity coverage for shared C++ `authbox::did::detail` helpers, including document JSON/JWK helper behavior, without collapsing method-specific implementations.
+  - Added `test_did_jwk` coverage for Ed25519, X25519, P-256, malformed base64url, invalid embedded JSON, missing `kty`, canonicalization-stable did:jwk roundtrips, crate-backed string escaping for canonical fields, and resolver integration.
+  - Added `test_did_metadata` parity coverage for resolution metadata, legacy fields, document metadata defaults, `resolve_from_document`, and backward-compatible DID/key/raw JSON access.
+  - Added `test_did_method_registry` parity coverage for C++-surface `MethodHandler`, `get_global`, register/list/clear behavior, global/custom-registry resolver wiring, method allow/block policy precedence, and document-size limit enforcement.
+  - Added `test_did_options` parity coverage for `ResolveOptions` default values, method allow/block policy precedence, and `parse_document_with_options` verification-method/service/context limit errors.
+  - Added `test_did_peer` parity coverage for did:peer:2 verification/encryption/service/unknown elements, C++ value-initialized `PeerElement` defaults, base58btc key decoding including the empty-key C++ error branch, document resolution, C++ second-pass relationship reference numbering when invalid keys are skipped, DID document service emission with shorthand/full service JSON, and resolver integration.
+  - Added `test_did_pkh` coverage for Ethereum, Polygon, Bitcoin, and Cosmos identifiers, C++ aggregate `PkhComponents` defaults, invalid method-id shapes, C++-matching missing-colon/validation error-message branches, account-id helpers, chain-name helpers, document generation, resolver integration, and real Ethereum personal-message signature recovery/address verification through the Rust ecosystem-backed secp256k1/Keccak path.
+  - Added `test_did_privacy` parity coverage for C++-surface email/phone/name/address heuristics, exact C++ email-in-DID and phone-in-DID smoke cases, safe `did:key` immutable-storage behavior, DID/verification-method/service PII locations, max-risk handling, immutable-storage safety checks, correlation/key-reuse warnings, no-risk separate-key relationships, and concern formatting.
+  - Added `test_did_privacy_security` as the source-name-matched mirror for the C++ combined `test_did_privacy_security.cpp` smoke cases while keeping deeper privacy/security coverage split into their same-topic Rust files.
+  - Added `test_did_resolver_rpc` parity coverage for did:web fetcher-backed resolution, C++ RPC detail codec helpers, and RPC client loopback resolve plus certificate-binding verification.
+  - Added `test_did_security` parity coverage for C++-surface key-type strength classification, JWK curve strength classification, exact C++ Ed25519/P-256/secp256k1 smoke cases, verification-method concern metadata, document scanning, all-recommended document behavior, recommended-cryptography checks, summary formatting, and human-readable security concern formatting.
+  - Added `test_did_service` coverage for string/object/array/scalar service endpoints using real JSON serialization, multiple/absent services, and service-fragment dereferencing.
+  - Added `test_did_web_fetch` parity coverage for default insecure-HTTP rejection with C++ raw-message surface, C++ web-fetch option/parsed-URL defaults, C++ web-fetch detail URL helper behavior including permissive `std::stoi`-style port parsing, URL parse error messages, unsupported-scheme errors, and local HTTP/1.1 DID document fetching.
+  - Added `test_did_key` parity coverage for generated Ed25519 did:key encode/parse, C++ value-initialized `DidKeyInfo` defaults, document JSON resolution, and resolver inline behavior without a network fetcher.
+- Replaced the PKI stub with the first pure Rust PKI primitive layer:
+  - `src/pki/detail.rs` starts the shared C++ `authbox::pik::detail` namespace surface with the PEM/base64 helper functions and constants from `pki/pem.hpp`, the ASN.1 `kMaxLengthOctets`, digit/decimal, and `make_time_point` helpers from `pki/asn1_utils.hpp`, the OID registry constants/tables/lookup helper from `pki/oid_registry.hpp`, the DistinguishedName cursor/attribute/string/parser/encoder helper surface from `pki/distinguished_name.hpp`, the random-serial/OID/time helpers from `pki/builder.hpp`, parser helpers from `pki/parser.hpp`, certificate detail helpers from `pki/certificate.hpp`, and CRL detail helpers from `pki/crl.hpp` while keeping the concrete implementations in their mirrored PKI modules.
+  - ASN.1/DER identifiers, tags, headers, `ASN1_MAX_TAG_NUMBER`, primitive parsers, C++-surface `ASN1Class`/`ASN1Tag`/`ASN1Identifier`/`ASN1Result` aliases and constants, C++ detail time helpers, calendar-validating time parsing, and directory string parsing.
+  - Full ASN.1 algorithm identifier parsing now follows the C++ parser behavior: signature/hash come from the algorithm OID, and curve is populated only from an explicit parameter OID.
+  - `parser_utils` cursor/copy wrappers plus C++ helper-header parser behavior, including the C++-named `parse_subject_public_key_info`, simple `parse_algorithm_identifier`, lenient `parse_extensions`, and parser-utils-specific `parse_time_choice` helper alongside Rust-friendly aliases.
+  - DER writer helpers for TLV, sequence/set, integer, C++-named default-zero-unused-bit bit strings plus explicit unused-bit helper, octet strings, booleans, OIDs, string/time tags, the C++ `authbox::pik::der::detail` append/string helper namespace, and C++-surface UTC/GeneralizedTime serialization from `SystemTime`.
+  - PEM base64 encode/decode now delegates to the Rust `base64ct` crate, while keeping certificate/private-key PEM helpers, C++-named default-64-column `pem_encode`, explicit `pem_encode_with_line_length`, C++-named default-any-label `pem_decode` plus explicit expected-label variants, C++-style configurable certificate PEM line wrapping, C++-named certificate/private-key decode helpers returning `PemResult`, and Rust-friendly `*_block` helpers for internals that need `PkiResult<PemBlock>`.
+  - OID registry lookups for signature algorithms, hash algorithms, curves, and certificate extensions, including the C++ detail table/constants surface and C++-matching optional hash OID behavior (`SHA384` has no standalone hash OID entry in the C++ table).
+  - Distinguished Name string parsing, DER encoding, DER parsing, first-attribute lookup, display formatting, C++ detail helper surface, and C++-surface `DistinguishedNameResult` wrappers.
+  - Initial `Certificate` DER/PEM wrapper.
+  - PKI C++ parity tests are now being split under `src/pki/tests/` by original certificate test topic, with `helpers.rs` mirroring the reusable `cert_test_helpers.hpp` shape.
+  - Added `test_cert_asn1`, `test_cert_generation`, `test_cert_keys`, `test_cert_pem`, and `test_cert_utils` parity coverage for ASN.1 vectors, C++ ASN.1 detail helper surface, C++ DER writer detail helper surface, DER writer bit-string default unused-bit behavior, C++ builder detail helper surface, C++ certificate detail helper surface, DER writer time formatting/serialization, Ed25519 self-signed builder output, builder DER/extension roundtrip, C++ default critical flags for certificate extension setters, C++ default non-self-signed build behavior, unsigned self-signed TBS emission, public-key/fingerprint helpers, C++-named PEM encode/decode, configurable certificate PEM line wrapping, C++-named PEM result wrappers, info/JSON printing, and identity equality helpers.
+  - Added C++-surface-style certificate extension wrappers and constants for the base `Extension` id/critical surface, `BasicConstraintsExtension`, `KeyUsageExtension`, `SubjectKeyIdentifierExtension`, `AuthorityKeyIdentifierExtension`, `SubjectAltNameExtension`, `ExtendedKeyUsageExtension`, `IssuerAltNameExtension`, `PolicyMappingsExtension`, `PolicyConstraintsExtension`, and `InhibitAnyPolicyExtension`, including C++-named key-usage flags, SAN general-name variants, EKU helper methods, `CertificatePurpose::TLSServer`/`TLSClient`, `ExtensionId::CRLDistributionPoints`, C++-named CRL extension ID constants, and `KeyPurposeId::OCSPSigning`.
+  - Added `test_cert_oid`, `test_cert_extensions`, and `test_cert_extended_key_usage` parity coverage for OID registries, core extension helper decoding, SAN/key-usage verification, C++-named extension wrapper surfaces, EKU OID/purpose conversion, anyExtendedKeyUsage behavior, builder/accessor behavior, critical EKU, DER roundtrip preservation, TLS server/client purpose checks, multi-purpose EKU certificates, time-stamping/OCSP helper coverage, and the C++ code-signing key-usage requirement.
+  - Added `test_cert_enterprise_extensions` parity coverage for absent enterprise extension accessors returning empty/none without crashing, C++-named enterprise extension wrapper surfaces, plus issuer-alt-name, policy-mappings, policy-constraints, and inhibit-any-policy decoding.
+  - Added `test_hostname_verification` parity coverage for DNS SAN exact/wildcard matching, SAN-over-CN precedence, IPv4 SAN matching, and the C++ builder behavior that encodes textual IPAddress GeneralName values into raw SAN octets.
+  - Extended `helpers.rs` with a reusable Ed25519 root/intermediate/leaf chain builder using a broad validity window so chain-validation tests remain stable beyond the fixed C++ helper date.
+  - Added `test_cert_validation`, `test_cert_parser`, and `test_cert_chain` parity coverage for issuer signature verification, X.509 parse/PEM roundtrip, minimal X.509 parsing, strict v1-extension rejection, trust-store chain validation, unordered intermediates, directly trusted issuers, unknown critical extensions, structural chain rejection, revocation policy modes, and default RSA signature/validity enforcement.
+  - Added `test_cert_csr` and `test_cert_crl` parity coverage for Ed25519 CSR build/parse/signature verification, CSR subject/SPKI/extensions roundtrip, unsigned CRI emission, RSA CSR signature verification, ECDSA CSR signature DER emission, RSA PKCS#1 v1.5 and RSA-PSS CSR internal signing/sign helper behavior, C++ unsupported-signature error strings, Ed25519 CRL builder/revocation/signature verification, CRL parse/revocation/validity/PEM-chain roundtrip, unsigned CRL TBS emission, C++ CRL detail helper surface, C++ CRL lenient malformed-extension behavior plus revoked-entry error prefixes, RSA CRL signature verification, ECDSA CRL signature DER emission, and RSA PKCS#1 v1.5/RSA-PSS CRL internal signing/sign helper behavior.
+  - Added `test_cert_trust_store` and `test_trust_store_system` parity coverage for trust-anchor add/remove behavior, explicit missing system trust-file failure behavior, and explicit system-trust file loading.
+  - Added `test_cert_signature_algorithms` parity coverage for crate-backed RSA PKCS#1 v1.5 SHA-256/SHA-384 certificate signature verification with DER public keys, crate-backed RSA-PSS SHA-256/SHA-384 certificate signature verification including variable salt vectors, RSA public-key DER decoding, RSA PKCS#1 v1.5 private-key DER signing, RSA-PSS crate-backed signing, RSA PKCS#1 v1.5/RSA-PSS certificate internal signing/sign helper behavior, C++ default-SHA256 certificate sign surface plus explicit hash-argument variant, C++ unsupported sign/verify error strings, Ed25519 RFC8032 certificate vectors, Ed25519 and ECDSA certificate/CSR/CRL internal signing for P-256/P-384/P-521, RustCrypto-backed ECDSA P-256 DER/raw signature verification with uncompressed keys/tamper rejection, RustCrypto-backed ECDSA P-384/SHA-384 and P-521/SHA-512 certificate/CSR/CRL verification, ecosystem-backed Ed448 signing/verification coverage, and raw-to-DER ECDSA signature emission by certificate/CSR/CRL builders.
+  - Added `test_cert_vectors` parity coverage for deterministic certificate DER/fingerprint generation and chain/CSR/CRL vector artifact generation.
+  - Added `test_cert_integration` parity coverage for PEM roundtrip plus X.509 parse with extensions, optional OpenSSL-generated Ed25519 certificate loading when `openssl` is available, PEM-file chain loading/validation, and expired/revoked certificate behavior.
+  - All C++ `xtra/authbox/test/test_*.cpp` files now have a mirrored Rust test module name under `src/did/tests/` or `src/pki/tests/`; not every C++ assertion is fully ported yet.
+- Added the first higher-level X.509 certificate parser layer:
+  - `Validity` with C++-style `contains`, `TbsCertificate`/`TBSCertificate`, and `CertificateContext` Rust models.
+  - `[0] EXPLICIT` X.509 version parsing.
+  - full algorithm identifier parsing with optional curve/OID parameters.
+  - full name/validity/SPKI parsing helpers.
+  - `[3] EXPLICIT` extension sequence parsing with strict v3 guard.
+  - `parse_x509_cert`, `parse_x509_cert_relaxed`, C++-named strict/default `Certificate::parse`, `Certificate::parse_der`, and `Certificate::parse_pem`, plus explicit `*_with_relaxed` Rust helpers for callers that need the C++ optional relaxed flag.
+  - `CertificateResult<T>` plus `CertificateParseResult`, `CertificateChainResult`, `CertificateSignatureResult`, and `CertificateBoolResult` aliases mirror the C++ success/value/error surface.
+  - Result-wrapper methods exist for certificate parse, PEM/DER chain parse, load, sign, signature verification, and revocation-check helper calls.
+  - C++-named strict/default `Certificate::parse_pem_chain`, `Certificate::parse_der_chain`, and `Certificate::load`, explicit `*_with_relaxed` variants, C++ default-PEM `Certificate::save` plus explicit `save_as`, `Certificate::to_der`, `Certificate::to_pem_with_line_length`, C++-style accessors for `tbs`/signature/DER fields, and `CertificateFormat` including C++-named `DER`/`PEM` constants.
+  - `Certificate::public_key_der`, `Certificate::fingerprint`, C++ default-now `Certificate::check_validity` plus explicit `check_validity_at`, `Certificate::print_info`, and `Certificate::to_json` utility helpers.
+  - `Certificate::find_extension`, `match_subject`, and `equals_identity` helpers.
+  - Certificate equality now follows the C++ `operator==` behavior by comparing DER bytes, while `equals_identity` remains subject/public-key based.
+  - `Certificate::sign(&KeyPair)` defaults to C++ SHA-256 sign-helper behavior, `Certificate::sign_with_hash(&KeyPair, HashAlgorithm)` preserves the explicit hash-argument surface, and `Certificate::check_revocation(&mut Client<_>)` covers C++-surface-style verification-service revocation checks.
+- Added extension-specific certificate helpers:
+  - Basic Constraints CA/path length decoding.
+  - Key Usage bit decoding and required-bit checks.
+  - Subject Alternative Name and Issuer Alternative Name GeneralName decoding (DNS, email, URI, IP, other).
+  - Extended Key Usage OID parsing, purpose recognition, and purpose checks.
+  - Policy Mappings, Policy Constraints, and Inhibit Any Policy decoders.
+  - Certificate purpose checks for TLS server/client and code signing.
+  - Hostname matching with SAN precedence, IPv4 SAN support, wildcard DNS handling, and CN fallback only when SAN is absent.
+- Added certificate builder support:
+  - `CertificateBuilder` in `src/pki/builder.rs`.
+  - Subject/issuer/version/serial/validity/SPKI/signature-algorithm setters.
+  - Ed25519, Ed448, ECDSA-P256, and RSA public-key SPKI setup helpers, including RSA hash/PSS metadata selection for SHA-256/SHA-384/SHA-512 surfaces.
+  - Basic Constraints, Key Usage, Extended Key Usage, Subject Alternative Name, Subject Key Identifier, and Authority Key Identifier builders, with C++-named default critical behavior and explicit Rust `*_with_critical` helpers when callers need non-default flags.
+  - Certificate DER/TBS encoding with externally supplied signatures and unsigned TBS emission for external signing.
+  - C++-named `CertificateBuilder::build` and `CertificateBuilder::build_ed25519` default to non-self-signed certificate construction, while explicit `*_with_self_signed` variants preserve self-signed behavior.
+  - `CertificateBuilder::build_ed25519`, `CertificateBuilder::build_ecdsa_p256_sha256`, `CertificateBuilder::build_ecdsa_p384_sha384`, `CertificateBuilder::build_ecdsa_p521_sha512`, `CertificateBuilder::build_rsa_pkcs1v15`, `CertificateBuilder::build_rsa_pss`, and `CertificateBuilder::build` can now internally sign Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, ECDSA P-521/SHA-512, RSA PKCS#1 v1.5, and RSA-PSS certificates from a `KeyPair`.
+  - Certificate builder build/signature/unsigned-TBS helpers now expose `CertificateResult<T>` wrappers matching the C++ success/value/error shape.
+  - Certificates built without an explicit serial now use a C++-style 16-byte random positive serial instead of a deterministic placeholder.
+- Added first-pass CSR/file support:
+  - `src/pki/files.rs` binary read/write helpers, C++-surface `BinaryReadResult` wrappers, C++-named `read_binary(path) -> BinaryReadResult`, C++-surface missing-file error text, C++-surface `write_binary(data, path) -> bool`, Rust-friendly `read_binary_bytes(path) -> PkiResult<Vec<u8>>` / `write_binary_result(data, path)`, and PEM-or-DER loading.
+  - `CertificationRequestInfo` and `CertificateRequest` models in `src/pki/csr.rs`.
+  - PKCS#10 CSR DER/PEM parsing, including subject, SPKI, signature algorithm, signature bits, CRI DER preservation, and extensionRequest attributes.
+  - `CertificateRequest::verify_signature()` verifies the request signature against the subject public key for supported algorithms.
+  - `CertificateRequest::sign(&KeyPair)` mirrors the C++ helper surface for Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, ECDSA P-521/SHA-512, RSA PKCS#1 v1.5, and RSA-PSS request signing against the preserved CRI bytes.
+  - CSR parse/load/sign/verify helpers and `CsrBuilder` build helpers now have `CertificateResult<T>` wrappers that mirror the C++ success/value/error return shape.
+  - CSR DER helpers for algorithm identifiers, SPKI, extensions, and `[0]` attributes.
+  - `CsrBuilder` support for subject/SPKI setup, Ed25519 public-key SPKI setup, externally supplied signatures, and unsigned CRI emission for an external signer.
+  - `CsrBuilder::build_ed25519`, `CsrBuilder::build_ecdsa_p256_sha256`, `CsrBuilder::build_ecdsa_p384_sha384`, `CsrBuilder::build_ecdsa_p521_sha512`, `CsrBuilder::build_rsa_pkcs1v15`, `CsrBuilder::build_rsa_pss`, and `CsrBuilder::build` can now internally sign Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, ECDSA P-521/SHA-512, RSA PKCS#1 v1.5, and RSA-PSS CSRs from a `KeyPair`.
+- Added first-pass CRL support:
+  - `CrlReason`, `CrlEntryExtension`, `CrlExtension`, `RevokedCertificate`, and `Crl` models in `src/pki/crl.rs`.
+  - DER/PEM CRL parsing, including version, signature algorithms, issuer, update times, C++-style default-time validity checks via `check_validity`/`check_validity_now` plus explicit `check_validity_at`, C++ default strict `parse_crl` plus explicit `parse_crl_with_relaxed` variants, revoked entries, reason/invalidity entry extensions, CRL-level extension metadata, and signature value/TBS DER preservation.
+  - `Certificate::is_revoked(&Crl)` helper.
+  - `Crl::verify_signature(&issuer)` verifies CRL signatures against the issuer certificate for supported algorithms.
+  - `Crl::sign(&KeyPair)` mirrors the C++ helper surface for Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, ECDSA P-521/SHA-512, RSA PKCS#1 v1.5, and RSA-PSS CRL signing against the preserved TBS bytes.
+  - CRL parse/load/sign/verify helpers and `CrlBuilder` build helpers now have `CertificateResult<T>` wrappers that mirror the C++ success/value/error return shape.
+  - `CrlBuilder` support for issuer/update fields, C++ default no-reason/no-invalidity revoked serial entry helpers plus explicit reason/options variants, reason/invalidity extensions, externally supplied signatures, and unsigned TBS emission for external signing.
+  - `CrlBuilder::build_ed25519`, `CrlBuilder::build_ecdsa_p256_sha256`, `CrlBuilder::build_ecdsa_p384_sha384`, `CrlBuilder::build_ecdsa_p521_sha512`, `CrlBuilder::build_rsa_pkcs1v15`, `CrlBuilder::build_rsa_pss`, and `CrlBuilder::build` can now internally sign Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, ECDSA P-521/SHA-512, RSA PKCS#1 v1.5, and RSA-PSS CRLs from a `KeyPair`.
+- Added first-pass verification service support:
+  - `src/pki/verify/wire_format.rs` implements the `LKEY` wire protocol header, message types, verify request/response, batch request/response, health-check request/response, C++-matching random nonce generation for requests serialized with an empty nonce, C++-matching batch request/response payload concatenation without per-message length prefixes, C++-matching trailing-byte tolerance after otherwise valid message payloads, and big-endian primitive serialization; `src/pki/verify/mod.rs` also exposes the C++ `authbox::pik::verify::wire` namespace surface while keeping the implementation in the hierarchy-matching `wire_format.rs`.
+  - `src/pki/verify/wire_format.rs` also supports C++-style `RequestFlags` bitwise `|` and `&` operations while preserving unknown raw flag bits across deserialize/serialize like the C++ `static_cast<RequestFlags>(uint8_t)` surface.
+  - `src/pki/verify/wire_format.rs` now exposes C++-style enum aliases, request/batch constructors, bool-returning deserialize-into helpers, typed message serialize/deserialize helpers, and a `Serializer` static-helper facade for serialize/deserialize, primitive integer/string/byte/timestamp reads and writes, length-prefixed payloads, and header validation while keeping the free Rust helpers as thin wrappers.
+  - `src/pki/verify/wire_format.rs` also exposes the shared response-signature message construction and nonce generation used by the client and server.
+  - `src/pki/verify/transport.rs` defines the transport trait, C++-surface `RequestHandler` function type, a `RequestHandlerTransport` adapter for custom in-process transports, `Box<dyn Transport>` delegation for trait-object clients, and a `SharedTransport` wrapper over `Arc<Mutex<T>>` so Rust clients can share one transport instance in the same spirit as the C++ `std::shared_ptr<Transport>` surface without adding an invented network stack.
+  - `src/pki/verify/server.rs` adds method IDs, `VerificationHandler`, `SimpleRevocationHandler`, C++-named default revocation insertion with explicit reason/timestamp Rust variants, `RequestProcessor`, request statistics including C++-surface `start_time`/`get_stats`, Ed25519 signing-key setup, response signing, C++-matching dispatch through `VerificationHandler::verify_batch` overrides, C++-matching processor fallback responses for malformed verify/batch/health requests, and C++-style revocation timestamp update windows.
+  - `src/pki/verify/direct_transport.rs` adds an in-process transport plus a simple `Verifier` wrapper with C++-style signing-key setup, responder-certificate setup, revocation-handler access, borrowed-client access, C++ default-now verify-chain calls plus explicit `verify_chain_at` variants, direct verify-batch calls, C++-matching random request nonce generation, result-style wrapper calls, health checks, and C++-matching client-delegated error surfaces for direct `Verifier` convenience calls.
+  - `src/pki/verify/client.rs` adds a typed client for verify-chain, batch, and health-check calls, C++ default-`ClientConfig` constructor surface plus explicit `with_config`, C++ default-now `verify_chain`/result surface plus explicit `verify_chain_at` variants, C++-surface `ClientConfig` construction/timeout accessor, C++-matching random request nonce generation, `ClientResult<T>` wrappers and response/result aliases for result-style callers, responder-certificate based Ed25519 response-signature verification for single-chain responses, and the current C++ batch-response behavior that converts responses without verifying their signatures.
+  - Added `test_verify_wire_format` and `test_verify_server` parity coverage for request/response/health wire roundtrips, empty-request-nonce random generation, client and direct-`Verifier` request random nonce generation, C++ default-argument validation-time behavior for client/direct `Verifier` verify-chain calls, C++ default-argument revocation insertion behavior, C++ batch request timestamp emission, C++ batch payload concatenation, bad header rejection, trailing-byte tolerance, request flag bit operations, multi-certificate chains, simple revocation handler operations, request-processor stats/start-time, signing-key size validation, custom handler batch override dispatch, malformed-request response behavior, direct transport, boxed transport trait-object clients, shared transport clones over the same processor state, C++-matching client transport/deserialize error surfaces, client result wrappers, client, response-signature verification/rejection, C++-matching client and direct-`Verifier` batch response conversion without signature verification, direct `Verifier` result wrappers, direct `Verifier` revocation-handler/client accessors, and direct `Verifier` flows. The remaining central verify-service tests have been moved into these same-topic files instead of staying in `src/pki/tests.rs`.
+- Added first-pass trust-store support:
+  - `src/pki/trust_store.rs` implements `TrustStore`, `ChainValidationCode`, `ChainValidationReport`, `RevocationPolicy`, and `ChainValidationOptions`.
+  - `src/pki/trust_store.rs` exposes the C++ `authbox::pik::detail` helper namespace for unknown-critical-extension checks and revocation-policy checks while retaining the same validation implementation path.
+  - Trust anchors can be added, removed by subject, searched by issuer, and loaded from PEM/DER files.
+  - `TrustStore::load_from_pem` and `TrustStore::load_from_der` now follow the C++ implementation shape by delegating through the explicit-relaxed certificate loader, so both paths auto-detect PEM vs DER contents instead of enforcing the function-name format.
+  - `TrustStore::load_from_system` now follows the C++ environment/default-path search order: `SSL_CERT_FILE` exclusively when set, `SSL_CERT_DIR` bundle candidates, then common OS bundle paths.
+  - Trust-store loading, PEM-chain parsing, detailed chain validation, and `Certificate::validate_chain` now expose `CertificateResult<T>` wrappers matching the C++ success/value/error shape, including C++ default `ChainValidationOptions` detailed-validation helpers plus explicit `*_with_options` variants.
+  - Structural chain validation links subjects to issuers, checks CA BasicConstraints, KeyCertSign key usage, path length constraints, unknown critical extensions, optional revocation callbacks, and trust anchor presence.
+  - Default chain validation now matches the C++ trust-store behavior more closely: supported certificate signatures are verified by default, child/issuer/trust-anchor validity periods are checked, and self-issued trust anchors verify their self-signature.
+  - `Certificate::validate_chain(&[Certificate], &TrustStore)` now delegates to detailed chain validation.
+- Added first-pass utility/facade support:
+  - `src/pki/key_utils.rs` adds Ed25519, Ed448, ECDSA P-256, ECDSA P-384, ECDSA P-521, and RSA public-key SPKI construction/parsing helpers plus ECDSA P-256 SEC1 private-key encode/decode through the RustCrypto `sec1` crate, encrypted PKCS#8 private-key DER encrypt/decrypt through the RustCrypto `pkcs8`/`pkcs5` ecosystem, `KeyPair` generation using Rust ecosystem randomness/keygen crates, EdDSA seed-to-public-key derivation, RustCrypto ECDSA public-key derivation, RSA DER/blob public-key normalization, and C++-style EdDSA private key layouts (`seed || public_key`).
+  - `src/pki/random.rs` centralizes OS randomness through the Rust ecosystem so Ed25519/Ed448/P-256 key generation, random serials, X25519 sealed-box ephemeral secrets, and verification nonces do not carry hand-rolled `/dev/urandom` or platform-stub code; RSA-PSS salt generation now lives inside the `rsa` crate signing path.
+  - `spki_from_ed25519_public` now keeps the C++ helper's lenient shape by encoding the provided byte vector directly; the Rust raw-SPKI extraction helper still rejects non-32-byte Ed25519 keys.
+  - `src/pki/key_exchange.rs` now exposes C++-named default associated-data helpers for `create_envelope`, `write_envelope_to_file`, and `write_envelope_to_memory`, with explicit `*_with_associated_data` Rust variants and out-parameter-style memory write support.
+  - `src/pki/pki.rs` adds `CertificateRecord`, DID URI SAN collection, C++-named default PEM certificate parsing plus explicit relaxed parsing, DID binding checks, trust-store validation facade helpers, `validate_with_system_trust`, and `PkiFacadeResult<T>` wrappers matching the facade-level C++ success/value/error shape, including a default strict result wrapper plus explicit relaxed-result variant.
+  - `src/pki/pki.rs` exposes the C++ `pik::to_dp_string` facade helper.
+  - `src/io.rs` exposes the C++ `authbox::io` namespace surface from `pki/files.hpp` while keeping the implementation in the hierarchy-matching `src/pki/files.rs`.
+  - PKI facade and key-utils coverage now lives in `src/pki/tests/test_pki_facade.rs` instead of the central PKI tests file.
+- Added first-pass hash support:
+  - `src/pki/hash.rs` keeps the PKI hash helper surface in the mirrored hierarchy but delegates SHA-256, SHA-384, and SHA-512 to the RustCrypto `sha2` crate, with a `HashAlgorithm` dispatch helper.
+  - Certificate fingerprints now support SHA-256, SHA-384, SHA-512, and Blake2b-256.
+  - SHA-256/SHA-384/SHA-512 vector coverage now lives in same-topic `src/pki/tests/test_cert_hash.rs` instead of the central PKI test file.
+- Added first-pass signature verification support:
+  - `src/pki/ed25519.rs` keeps the Ed25519 helper API in the mirrored PKI hierarchy but now delegates signing, public-key derivation, and strict verification to the RustCrypto/dalek ecosystem, with RFC8032 test-vector coverage.
+  - `src/pki/ecdsa.rs` keeps the mirrored ECDSA helper API while delegating P-256/SHA-256 signing/verification/public-key derivation and P-384/P-521 verification to the RustCrypto `p256`/`p384`/`p521` crates; the legacy P-256 nonce-shaped helper now validates the nonce scalar but uses the crate-backed signer instead of carrying hand-rolled curve arithmetic.
+  - `src/pki/signature.rs` keeps RSA public-key DER/blob parsing in the mirrored PKI signature module, but delegates standard RSA PKCS#1 public-key DER parsing plus RSA PKCS#1 v1.5 verification and RSA-PSS verification for SHA-256/SHA-384/SHA-512 to the Rust `rsa` crate instead of carrying hand-rolled modular exponentiation, MGF1, PKCS#1 padding, or PSS verification code; variable-salt PSS compatibility is handled by trying the crate verifier with supported salt lengths.
+  - `src/pki/rsa.rs` adds RSA private-key DER/blob parsing while delegating standard RSA PKCS#1 private-key DER parsing/encoding, PKCS#8 private-key conversion, and PKCS#1 v1.5/RSA-PSS signing for SHA-256/SHA-384/SHA-512 to the `rsa` crate, wired into certificate/CSR/CRL sign helpers and builders.
+  - `Certificate::verify_signature(&issuer)` now dispatches through the signature verifier for RSA, Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, and ECDSA P-521/SHA-512 signatures.
+  - `CertificateRequest::verify_signature()` and `Crl::verify_signature(&issuer)` now share the same payload-level verifier for supported algorithms.
+  - `ChainValidationOptions { require_signature_verification: true }` now performs cryptographic verification for supported signature algorithms instead of returning a blanket not-implemented error.
+  - RSA-PSS SHA-384/SHA-512 now map to the RSASSA-PSS OID for builder emission instead of being rejected at certificate-build time.
+- Added key exchange envelope support:
+  - `src/pki/key_exchange.rs` mirrors the C++ `include/pki/key_exchange.hpp` surface instead of folding it into a larger PKI file.
+  - Envelope framing uses the C++ little-endian `L K X G` magic/version/length/digest layout and round-trips associated data plus ciphertext.
+  - The C++ `authbox::pki::key_exchange::detail` envelope namespace is exposed as a Rust `detail` module over the same envelope/constants plus little-endian `append_u32`/`read_u32` helper surface.
+  - Envelope digests and sealed-box nonce derivation use BLAKE2b-256 through the Rust `blake2` crate while keeping the `blake2b_256` helper in the hierarchy-matched key-exchange module.
+  - Envelope parsing rejects wrong magic/version/length and digest tampering.
+  - X25519 sealed-box create/consume/file/memory APIs now perform pure Rust encryption/decryption using RustCrypto `x25519-dalek` for scalar multiplication, `crypto_secretbox` for XSalsa20-Poly1305, and `blake2`-backed BLAKE2b-derived sealed-box nonces.
+  - Key-exchange helpers now preserve C++-surface public-key/file/memory/invalid-envelope error strings, expose associated-data readback for consume/file/memory helpers, include out-parameter-style memory write/read helper variants, cover the C++ detail endian helpers, and have same-topic tests under `src/pki/tests/test_key_exchange.rs`.
+- Continued PKI test hierarchy cleanup without changing the source hierarchy:
+  - ASN.1 DER writer roundtrip parity now lives in `src/pki/tests/test_cert_asn1.rs`.
+  - Raw certificate PEM helper parity now lives in `src/pki/tests/test_cert_pem.rs`.
+  - Distinguished-name string/DER roundtrip parity now lives in `src/pki/tests/test_cert_utils.rs`.
+  - Certificate PEM helper roundtrip parity now lives in `src/pki/tests/test_cert_pem.rs`.
+  - Certificate chain load/save parity, including C++ default-PEM `Certificate::save` plus explicit DER `save_as`, now lives in `src/pki/tests/test_cert_files.rs`.
+  - Certificate public-key/fingerprint/info/JSON helper parity now lives in `src/pki/tests/test_cert_keys.rs`.
+  - Minimal parser, strict v1-extension rejection, CSR/CRL roundtrip and external-signing coverage, certificate builder DER/extension/TBS coverage, core/enterprise extension helper decoding, Ed25519/ECDSA builder-signing coverage, RSA PKCS#1/RSA-PSS signature-vector coverage, ECDSA raw-signature DER emission, hostname CN-fallback coverage, chain/trust-store structural validation, and system-trust explicit-file coverage now live in their same-topic modules instead of the central `src/pki/tests.rs`; the central file now only declares the same-topic modules and shared helper module.
+  - Shared PKI test helpers (`der_time`, hex decoding, RSA public-key parser vectors, generated RSA keypairs, and generated-key RSA public DER conversion) now live in `src/pki/tests/helpers.rs` instead of being hidden in the central `src/pki/tests.rs` module.
+- Added crate-backed RSA key generation/signing/verification/import-export without flattening the hierarchy:
+  - `Cargo.toml` now depends directly on the Rust `rsa` crate (with its `sha2` feature) and `rand` for RSA keypair generation, PKCS#1 v1.5 signing/verification, RSA-PSS signing/verification, OAEP encryption/decryption, and PKCS#8/SPKI conversion instead of hand-porting the C++ RSA keygen/sign/verify/OAEP/import-export internals.
+  - `src/pki/key_utils.rs` exposes `generate_rsa_keypair(bits)` and `generate_rsa_2048_keypair()` next to the existing EdDSA/ECDSA key utility surfaces, returning the existing authbox `KeyPair` shape with RSA blob public/private material and CRT primes when generated through the `rsa` crate.
+  - `src/pki/rsa.rs` keeps the RSA parser/signing helper surface in the PKI RSA module, but delegates RSA signing plus public SPKI, private PKCS#1, and private PKCS#8 encode/decode to the `rsa` crate.
+  - `src/pki/signature.rs` now uses the same `rsa` crate for RSA PKCS#1 v1.5 and RSA-PSS verification; RSA signature tests now use real generated RSA keys/signatures instead of exponent-1 fake signatures.
+  - `../keylock/src/crypto/context.rs` now lets RSA signature and RSA-OAEP algorithms call `generate_keypair()` through the same facade, using the crate-backed 2048-bit RSA generator.
+  - `src/pki/tests/test_pki_facade.rs` and `../keylock/tests/context_boundary.rs`/`../keylock/tests/key_format.rs` cover generated RSA key parsing, public SPKI roundtrips, private PKCS#1/PKCS#8 roundtrips, ECDSA P-256 SEC1 private-key roundtrips, PKCS#1 v1.5 signing/verification, and generated-key RSA-OAEP encrypt/decrypt.
+- Moved the JSON helper into the top-level Rust hierarchy and made it crate-backed instead of reimplementing the C header parser:
+  - `src/json.rs` mirrors the C++ `include/json.hpp` placement.
+  - DID document and did:jwk code now reuse the shared JSON parser/serializer instead of keeping JSON hidden in `src/did/document.rs`.
+  - Strict parsing and compact string escaping/writing now delegate to `serde_json`; opt-in permissive parsing delegates to the `json5` crate.
+  - DID service endpoint serialization and did:jwk canonicalization now also go through crate-backed JSON escaping/number/bool handling instead of keeping the earlier C++ no-escape/null-placeholder compatibility quirks.
+  - DID web-fetch HTTP response status/header parsing now delegates to the `httparse` crate while keeping body-size, chunked decoding, and C++-surface error messages in the Rust-first `src/did/web_fetch.rs` module.
+  - Kept the local `Json` enum plus focused helper surface (`JsonParser`, `parse`, `parse_with_flags`, `JsonParseFlags`, `json_string`, `json_array`, `parse_string_array_from_obj`, `to_compact_string`, `to_pretty_string`, and `escape`) so existing DID/PKI modules keep their hierarchy and call sites.
+  - Intentionally stopped trying to model json.hpp internals 1:1: simplified/global-object/equal/no-comma C-header forms and allocator/single-block DOM layout are not reimplemented; JSON5-shaped permissive input is handled by the crate ecosystem.
+- Kept PKI/certificate compatibility in authbox:
+  - `authbox` owns PKI, DID, and JSON; `../keylock` intentionally does not expose a copied `keylock::cert` tree and does not import authbox PKI/DID/JSON.
+- Added the completed `keylock::crypto::Context` compatibility facade:
+  - `../keylock/src/crypto/context.rs` exposes the C++ dependency-shaped `Context`, `Algorithm`, `KeyType`, `KeyFormat`, `KeyPair`, and `CryptoResult` surface used by authbox-side headers/tests, while delegating Ed25519, ECDSA P-256, RSA, X25519 sealed-box, random key generation, hashing, and RSA sign/verify dispatch to keylock-local crate-backed modules.
+  - `../keylock/src/crypto/common.rs`, `../keylock/src/crypto/aead_xchacha20poly1305_ietf.rs`, `../keylock/src/crypto/aead_chacha20poly1305_ietf.rs`, `../keylock/src/crypto/aead_aes256gcm.rs`, and `../keylock/src/crypto/secretbox_xsalsa20poly1305.rs` keep the keylock crypto namespace split into same-topic modules instead of folding the Rust port into `context.rs`.
+  - XChaCha20-Poly1305, ChaCha20-Poly1305-IETF, and AES-256-GCM symmetric encryption/decryption now use the RustCrypto `chacha20poly1305` and `aes-gcm` crates, including associated-data authentication and `nonce || ciphertext || tag` context output.
+  - `../keylock/src/crypto/aead_aes256gcm.rs`, `../keylock/src/crypto/aead_chacha20poly1305_ietf.rs`, and `../keylock/src/crypto/aead_xchacha20poly1305_ietf.rs` now expose explicit-nonce combined (`ciphertext || tag`) and detached (`ciphertext`, `mac`) helpers beside the existing random-nonce context facade, matching the C++ AEAD test surfaces while keeping implementation in RustCrypto AEAD crates.
+  - `../keylock/src/crypto/aes.rs` mirrors the `keylock/crypto/aes/aes.hpp` AES block/CTR/CBC surface while delegating AES-128/AES-192/AES-256 block operations to the RustCrypto `aes` crate instead of carrying the C++ S-box/key-schedule/round code.
+  - `../keylock/src/crypto/chacha20.rs` and `../keylock/src/crypto/poly1305.rs` keep the old stream-cipher/MAC module boundaries while delegating ChaCha20-DJB, ChaCha20-IETF, HChaCha20, XChaCha20, and Poly1305 to RustCrypto crates instead of porting the C++ Monocypher-derived internals.
+  - It now includes C++-surface key save/load helpers with raw, Ed25519 public SPKI/private PKCS#8, ECDSA P-256 public SPKI/private PKCS#8/private SEC1 `EC PRIVATE KEY`, crate-backed RSA public SPKI/private PKCS#8, RSA PKCS#1 public/private DER and `RSA PUBLIC KEY`/`RSA PRIVATE KEY` PEM import, encrypted PKCS#8 private-key DER/PEM save/load for Ed25519, ECDSA P-256, and RSA contexts, and PEM-wrapped public/private key file paths plus static DER/blob helper methods for Ed25519 SPKI/PKCS#8, ECDSA P-256 SPKI/PKCS#8/SEC1/signatures, and RSA PKCS#1 public/private key material.
+  - SecretBox/XSalsa20-Poly1305 symmetric encryption/decryption now uses the Rust `crypto_secretbox` crate while keeping the `Context` method/output shape expected by the mirrored keylock surface.
+  - `Context::hmac` now routes through the mirrored `keylock::hash` namespace and uses RustCrypto `hmac`/`sha2` plus BLAKE2 keyed-MAC helpers instead of carrying the C++ hash internals.
+  - `../keylock/src/crypto/rsa.rs` adds RSA-OAEP SHA-256/SHA-384/SHA-512 encryption/decryption plus RSA signing/verification and key import/export for the existing keylock public/private blob and DER/PEM key surfaces while delegating padding and RSA exponentiation to the `rsa` crate.
+  - `../keylock/src/crypto/secp256k1.rs` adds ecosystem-backed compact ECDSA secp256k1 key generation, recoverable signing, verification, public-key recovery, low-S checks, Ethereum recovery-id normalization, and Ethereum address derivation through RustCrypto `k256` plus `sha3` Keccak-256 while keeping the C++ keylock module split.
+  - Ed25519 public SPKI encode/decode now delegates to `ed25519-dalek`'s PKCS#8/SPKI support, and ECDSA P-256 public SPKI/private PKCS#8 encode/decode delegates to the `p256`/`pkcs8` ecosystem. ECDSA P-256 SEC1 `EC PRIVATE KEY` encode/decode now delegates to the RustCrypto `sec1` crate, including P-256 named-curve checks and optional public-key consistency checks instead of hand-porting ASN.1 key-format decoders in the keylock facade.
+  - Encrypted PKCS#8 import/export now delegates to the `pkcs8` crate's encryption support instead of hand-porting PBES2/PBKDF2/scrypt/AES-CBC internals; remaining file-format polish is ergonomics beyond the currently supported DER/PEM paths.
+- Added `keylock::crypto::constant_time` compatibility helpers:
+  - `../keylock/src/crypto/constant_time/verify.rs` mirrors the `verify16`/`verify32`/`verify64`/generic `verify`/`secure_compare` C++ surface while delegating constant-time equality to the `subtle` crate.
+  - `../keylock/src/crypto/constant_time/wipe.rs` mirrors the wipe helper surface while delegating zeroization to the `zeroize` crate plus a compiler fence, avoiding a hand-rolled volatile loop.
+  - `../keylock/tests/extra_primitives.rs` mirrors the source constant-time coverage for fixed-size comparisons, generic comparisons, secure compare, slice length mismatch, and wiping fixed arrays/vectors.
+- Added first-pass `keylock::hash` digest/HMAC/HKDF compatibility:
+  - `../keylock/src/hash/mod.rs` exposes the C++-shaped success/data/error `Result`, `Algorithm` alias/constants, `detail::hash_output_size`, digest forwarding, `keccak256`, unified `hmac` dispatch, and unified HKDF extract/expand/combined dispatch over the existing `HashAlgorithm` enum.
+  - `../keylock/src/hash/sha256.rs`, `../keylock/src/hash/sha512.rs`, `../keylock/src/hash/sha3.rs`, `../keylock/src/hash/shake.rs`, `../keylock/src/hash/keccak.rs`, `../keylock/src/hash/kmac.rs`, `../keylock/src/hash/blake2s.rs`, `../keylock/src/hash/blake2b.rs`, and `../keylock/src/hash/generichash/blake2b_keyed.rs` keep the C++ keylock digest file hierarchy for SHA-256, SHA-512, SHA3-224/256/384/512, SHAKE128/256, cSHAKE128/256, KMAC128/256, Keccak-256, BLAKE2s, BLAKE2b, and libsodium-shaped generic hash helpers while delegating implementation to RustCrypto `sha2`, `sha3`, and `blake2` crates. The KMAC module uses RustCrypto cSHAKE for the primitive and applies the SP800-185 KMAC framing without carrying the C++ Keccak permutation.
+  - `../keylock/src/hash/hmac/hmac_sha256.rs`, `../keylock/src/hash/hmac/hmac_sha384.rs`, `../keylock/src/hash/hmac/hmac_sha512.rs`, and `../keylock/src/hash/hmac/hmac_blake2b.rs` keep the C++ file hierarchy while delegating SHA-256/SHA-384/SHA-512 HMAC and BLAKE2b keyed MAC work to RustCrypto crates.
+  - `../keylock/src/hash/hkdf/mod.rs`, `../keylock/src/hash/hkdf/hkdf_sha256.rs`, `../keylock/src/hash/hkdf/hkdf_sha384.rs`, and `../keylock/src/hash/hkdf/hkdf_sha512.rs` keep the C++ HKDF hierarchy while delegating standard SHA-2 extract/expand/combined HKDF to the RustCrypto `hkdf` crate; the BLAKE2b keyed-MAC compatibility path stays behind the same dispatcher for the legacy surface.
+  - HMAC-SHA256/HMAC-SHA384/HMAC-SHA512 RFC 4231 vectors, digest module one-shot/incremental surfaces, SHA3/SHAKE/cSHAKE NIST vectors, KMAC128/256 NIST vectors plus XOF smoke behavior, BLAKE2b generichash/keyed helpers, source-name-matched generic hash helpers, BLAKE2s vectors/keyed helpers, `Algorithm::SHA256`/`SHA512`/`BLAKE2b`/`KECCAK256` constants, BLAKE2b empty-key failure behavior, HKDF RFC 5869 SHA-256 vectors, SHA-384 direct helper/wrapper parity with a real extracted PRK, SHA-512/BLAKE2b HKDF smoke coverage, C++ error surfaces for oversize output/short PRK/Keccak HMAC, and `Context::hmac` dispatch are covered in `../keylock/tests/hash_primitives.rs`, `../keylock/tests/hash_vectors.rs`, and `../keylock/tests/secondary_hash_vectors.rs`.
+- Added keylock ChaCha20/Poly1305 compatibility modules:
+  - `../keylock/src/crypto/chacha20.rs` delegates DJB/IETF/XChaCha20 stream encryption and HChaCha20 subkey derivation to the RustCrypto `chacha20` crate.
+  - `../keylock/src/crypto/poly1305.rs` delegates one-shot and incremental Poly1305 tags to the RustCrypto `poly1305` crate.
+  - `../keylock/tests/crypto_primitives.rs` and `../keylock/tests/known_answer_vectors.rs` mirror the C++ source-name tests for roundtrip, keystream, counter/key/nonce differences, RFC 8439 Poly1305 vector, incremental behavior, and invalid key/input handling.
+- Added keylock AES block/CTR/CBC compatibility:
+  - `../keylock/src/crypto/aes.rs` keeps the C++ AES module boundary but uses the RustCrypto `aes` crate for AES-128/AES-192/AES-256 block encrypt/decrypt, with small Rust CTR and no-padding CBC glue matching the C++ helper surface.
+  - `../keylock/tests/aes_vectors.rs` mirrors `test_aes_modes.cpp` with NIST FIPS 197/SP 800-38A vectors, invalid key-size handling, different-key behavior, and CTR/CBC roundtrips.
+- Added source-name-matched keylock AEAD coverage:
+  - `../keylock/tests/aead_vectors.rs` covers explicit-nonce combined encrypt/decrypt, detached encrypt/decrypt, empty messages, wrong keys, modified associated data/ciphertext, constants, and preservation of the random-nonce facade.
+- Added top-level `keylock/keylock.hpp` and `keylock/compat_constants.hpp` compatibility surfaces:
+  - `../keylock/src/lib.rs` exposes C++-style root aliases (`keylock`, `CryptoResult`, `KeyPair`, `Algorithm`, `HashAlgorithm`, `KeyType`, and `KeyFormat`) over the hierarchy-matched Rust modules.
+  - `../keylock/src/compat.rs` exposes the libsodium-shaped byte-size constants plus Rust-safe `randombytes_buf`, Ed25519 keypair, detached-sign, and verify wrappers while delegating to `getrandom` and the existing RustCrypto/dalek-backed Ed25519 path instead of porting crypto internals.
+  - `../keylock/src/crypto/rng.rs` mirrors the `keylock/crypto/rng/randombytes.hpp` surface, including buffer/vector/container-style helpers, while delegating random bytes to `getrandom`.
+  - `../keylock/src/crypto/ed25519.rs` mirrors the `keylock/crypto/ed25519/ed25519.hpp` surface while delegating signing, verification, and keypair generation to the existing RustCrypto/dalek-backed PKI helpers.
+  - `Context::from_hex` now follows the C++ utility surface by returning an empty vector for invalid characters or odd-length hex input instead of returning partially decoded data, and `../keylock/tests/compat_surface.rs` mirrors `test_utilities.cpp` for hex conversion plus algorithm/hash-algorithm name conversion.
+  - `../keylock/src/crypto/aead_aes256gcm.rs` and `../keylock/src/crypto/context.rs` expose AES-GCM availability through the context facade; it is always available in this Rust crate because the crate-backed AES-GCM implementation is compiled in.
+  - `../keylock/src/crypto/context.rs` now uses direct X25519 sealed-box create/open helpers for the keylock asymmetric surface, so keylock X25519 ciphertexts match the C++ sealed-box shape (`payload + 48`) instead of the PKI `LKXG` envelope framing.
+  - `src/pki/key_exchange.rs` now exposes raw sealed-box create/open helpers alongside the existing `LKXG` envelope APIs, preserving the PKI envelope surface while allowing keylock to match the C++ direct sealed-box behavior.
+  - `../keylock/tests/compat_surface.rs`, `../keylock/tests/context_boundary.rs`, `../keylock/tests/crypto_primitives.rs`, `../keylock/tests/asymmetric_primitives.rs`, and `../keylock/tests/key_format.rs` cover the root alias surface, compat-constant Ed25519/RNG wrappers, C++ randombytes buffer/container/uniqueness/distribution smoke behavior, X25519 key-file behavior, availability checks for HMAC, BLAKE2b, Ed25519, X25519, and secp256k1 compact signing, plus mirrored construction/key-generation/symmetric-encryption/asymmetric-encryption behaviors.
+- Added top-level `authbox.hpp` compatibility surfaces:
+  - `src/lib.rs` exposes `VERSION`, `log_startup`, an `ab` self-alias for the C++ `namespace ab = authbox` surface, and a `pik` compatibility module that re-exports the Rust `pki` module to mirror the C++ primary `authbox::pik` namespace.
+  - `src/tests.rs` covers the top-level `VERSION`, `ab`, and `pik` alias surfaces plus the top-level C++ doctest DID parser smoke cases without mixing those checks into DID/PKI topic modules.
+- Added first Rust examples under the same source hierarchy as the vendored C++ examples:
+  - `Makefile` now defaults `make run` to the existing `simple_example` target instead of the nonexistent `main` example, so the default Makefile run path is valid while `EXAMPLE=...` still selects any specific nested Rust example.
+  - `Cargo.toml` now declares empty `tracing` and `config` feature flags to match the existing CI feature matrix while keeping the current crate behavior unchanged.
+  - `Makefile` now runs build/test/check/clippy against `--all-features`, has a `clippy` target that runs `cargo clippy --all-targets --all-features -- -D warnings`, has a `fmt-check` target for CI/non-mutating format verification, has a `test-feature FEATURES="..."` target for the default/tracing/config CI matrix, and its `docs` target now builds Rust API docs with `RUSTDOCFLAGS=-D warnings` instead of pointing at a missing mdBook tree.
+  - `.github/workflows/ci.yml` now uses the Makefile lanes for rustfmt, clippy, feature-matrix tests, and Rustdoc (`make fmt-check`, `make clippy`, `make test-feature FEATURES=...`, and `make docs`).
+  - `.github/workflows/book.yml` is now a Rustdoc Pages workflow that runs `make docs` and deploys `target/doc`; it no longer tries to build a nonexistent `book/` mdBook tree.
+  - `README.md` now lists the Makefile verification lanes (`fmt`, `fmt-check`, `clippy`, `test`, `test-feature FEATURES="tracing config"`, `check`, `build`, `docs`, and `run`) and the `EXAMPLE=...` override for hierarchy-preserving examples.
+  - `examples/did/did_key_roundtrip.rs` mirrors `xtra/authbox/examples/did/did_key_roundtrip.cpp` using pure Rust Ed25519 key generation, did:key encode/parse, and DID document JSON resolution.
+  - `examples/did/did_jwk_roundtrip.rs` mirrors `xtra/authbox/examples/did/did_jwk_roundtrip.cpp` using pure Rust did:jwk encode/parse, DID document resolution, canonicalization checks, and resolver integration.
+  - `examples/did/did_rpc_loopback.rs` mirrors the DID RPC loopback flow using a pure Rust generated Ed25519 certificate, DID URI SAN binding, did:web document generation, resolver fetcher injection, RPC service dispatch, client resolve, and certificate-binding verification.
+  - `examples/did/did_web_from_x509.rs` mirrors `xtra/authbox/examples/did/did_web_from_x509.cpp` using pure Rust Ed25519 certificate generation, DID URI SAN binding, did:web document generation, and binding verification.
+  - `examples/did/did_web_resolve_live.rs` mirrors `xtra/authbox/examples/did/did_web_resolve_live.cpp` command parsing and live resolver flow through the Rust ecosystem-backed DID web fetcher; the no-argument path is runnable for `make run`.
+  - `examples/pki/cert_generate_self_signed.rs` mirrors `xtra/authbox/examples/pki/cert_generate_self_signed.cpp` using pure Rust Ed25519 certificate generation and PEM saving.
+  - `examples/pki/cert_generate_ca.rs` mirrors `xtra/authbox/examples/pki/cert_generate_ca.cpp` using pure Rust Ed25519 CA certificate generation, CA key-usage extensions, SKI, and PEM saving.
+  - `examples/pki/cert_parse_and_print.rs` mirrors `xtra/authbox/examples/pki/cert_parse_and_print.cpp` using pure Rust certificate load/fallback generation, info printing, SAN counting, and SHA-256 fingerprint display.
+  - `examples/pki/cert_sign_csr.rs` mirrors `xtra/authbox/examples/pki/cert_sign_csr.cpp` using pure Rust CA generation, CSR generation, CSR-subject/SPKI certificate issuance, and issuer-signature verification.
+  - `examples/pki/cert_verify_chain.rs` mirrors `xtra/authbox/examples/pki/cert_verify_chain.cpp` using pure Rust root/intermediate/leaf Ed25519 builders, AKI/SKI extensions, trust-store anchoring, and chain validation.
+  - `examples/pki/csr_generate.rs` mirrors `xtra/authbox/examples/pki/csr_generate.cpp` using pure Rust Ed25519 CSR generation and PEM saving.
+  - `examples/pki/enterprise.rs` mirrors `xtra/authbox/examples/pki/enterprise.cpp` using pure Rust raw extension encoding and parser accessors for Issuer Alternative Name, Policy Mappings, Policy Constraints, and Inhibit Any-Policy.
+  - `examples/pki/simple_example.rs` mirrors `xtra/authbox/examples/pki/simple_example.cpp` using standard Rust argument parsing, `authbox::log_startup`, greeting/file argument handling, and DID parse validation.
+  - `examples/pki/simple_verify_client.rs` mirrors `xtra/authbox/examples/pki/simple_verify_client.cpp` using pure Rust direct verifier health checks, revocation-list setup, GOOD/REVOKED certificate checks, and C++-surface result wrappers.
+  - `examples/pki/simple_verify_server.rs` mirrors `xtra/authbox/examples/pki/simple_verify_server.cpp` using pure Rust `RequestProcessor`, wire-format serialization/deserialization, response signing, health checks, GOOD/REVOKED request handling, and processor statistics.
+  - `examples/pki/trust_store_usage.rs` mirrors `xtra/authbox/examples/pki/trust_store_usage.cpp` using pure Rust Ed25519 certificate builders, `TrustStore::add`, `find_issuer`, and `remove_by_subject`.
+  - `examples/pki/verify_direct.rs` covers the verification-service demo path using pure Rust local direct verification. It accepts an optional certificate path and generates a local demo certificate when no path is supplied so the Makefile example lane is runnable; the original C++ netpipe transport variant is not ported.
+  - `Cargo.toml` has explicit `[[example]]` entries so nested hierarchy examples are compiled by `make test --all-targets` and run with `make run EXAMPLE=...`.
+
+## Verification
+
+- Current post-extraction checks pass:
+  - `/home/bresilla/data/code/robolibs/keylock`: `make check && make test` passes after formatting (98 keylock integration tests).
+  - `/home/bresilla/data/code/robolibs/authbox`: `make fmt-check && make check && make test` passes (329 authbox tests after moving keylock tests out of authbox and adding the sibling-keylock context boundary check).
+  - `/home/bresilla/data/code/robolibs/authbox`: `make clippy && make docs && make run` passes; the default `simple_example` prints the startup/version smoke output.
+- `make fmt` passes.
+- Historical pre-extraction `make test` passed: 416 unit tests across the mirrored DID, JSON, keylock, PKI, verification-service, examples, and compatibility-alias hierarchy; latest added coverage includes top-level `keylock/keylock.hpp` aliases, `keylock/compat_constants.hpp` libsodium-shaped constants, hierarchy-matched `keylock::crypto::rng`/`ed25519` wrappers, C++ `test_rng.cpp` randombytes coverage, C++ `test_generichash.cpp` generic hash coverage, C++ `test_kmac.cpp` KMAC coverage, C++ construction/key-generation/symmetric-encryption/asymmetric-encryption keylock parity modules, direct X25519 sealed-box ciphertext-size behavior for the keylock context, ECDSA P-256 SEC1 private-key encode/decode and `EC PRIVATE KEY` PEM loading through RustCrypto `sec1`, encrypted PKCS#8 DER/PEM private-key save/load for Ed25519, ECDSA P-256, and RSA contexts through RustCrypto `pkcs8`, `keylock::crypto::constant_time` verify/wipe helpers through `subtle`/`zeroize`, C++ utility hex/name conversion behavior, keylock SHA3/SHAKE/cSHAKE/KMAC helpers through RustCrypto `sha3`, keylock BLAKE2b keyed vectors, generic hash, and BLAKE2s through RustCrypto `blake2`, keylock AES block/CTR/CBC helpers through RustCrypto `aes`, keylock explicit-nonce/detached AES-256-GCM/ChaCha20-Poly1305/XChaCha20-Poly1305 helpers through RustCrypto AEAD crates, keylock ChaCha20/HChaCha20/XChaCha20 through RustCrypto `chacha20`, keylock Poly1305 through RustCrypto `poly1305`, and a source-name-matched `test_did_privacy_security` mirror for the C++ combined privacy/security smoke tests.
+- Historical pre-extraction extended gate `make fmt-check && make clippy && make test && make check && make docs && make run` passes after adding the keylock RNG/Ed25519 wrapper modules, AES-GCM availability facade, direct sealed-box X25519 keylock encryption/decryption, raw sealed-box helpers beside the PKI `LKXG` envelope API, ECDSA P-256 SEC1 private-key helpers through RustCrypto `sec1`, encrypted PKCS#8 private-key helpers through RustCrypto `pkcs8`, keylock constant-time helpers through `subtle`/`zeroize`, C++ utility hex/name conversion behavior, keylock SHA3/SHAKE/cSHAKE helpers through RustCrypto `sha3`, keylock BLAKE2s helpers through RustCrypto `blake2`, keylock AES block/CTR/CBC helpers through RustCrypto `aes`, keylock explicit-nonce/detached AES-256-GCM/ChaCha20-Poly1305/XChaCha20-Poly1305 helpers through RustCrypto AEAD crates, keylock ChaCha20/HChaCha20/XChaCha20 helpers through RustCrypto `chacha20`, keylock Poly1305 helpers through RustCrypto `poly1305`, mirrored construction/key-generation/symmetric/asymmetric keylock parity tests, the C++ source-name-matched DID privacy/security smoke module, the default `make run` example fix, Clippy cleanup while explicitly allowing module-inception only where the mirrored C++ header hierarchy requires `did::did` and `pki::pki`, all-feature Makefile lanes, non-mutating `fmt-check`, `test-feature` CI matrix lane, empty CI feature flags, CI Makefile lane alignment, Rustdoc verification, the Rustdoc Pages workflow, and README verification docs.
+- CI feature matrix also passes through the Makefile lane for the default, `tracing`, `config`, and `tracing config` feature combinations.
+- Latest CI-shaped gate `make fmt-check && make test-feature && make test-feature FEATURES=tracing && make test-feature FEATURES=config && make test-feature FEATURES='tracing config' && make clippy && make docs && make run` passes.
+- `make clippy` passes with warnings denied.
+- `make docs` passes with Rustdoc warnings denied.
+- `make test` with loopback networking permitted also passes the real local TCP DID HTTP fetch path.
+- `make check` passes.
+- `make build` passes.
+- `make run` passes on the default `simple_example` path.
+- `make run EXAMPLE=did_key_roundtrip` passes.
+- `make run EXAMPLE=did_jwk_roundtrip` passes.
+- `make run EXAMPLE=did_rpc_loopback` passes.
+- `make run EXAMPLE=did_web_from_x509` passes.
+- `make run EXAMPLE=did_web_resolve_live` passes on the no-argument runnable path.
+- `make run EXAMPLE=cert_generate_self_signed` passes.
+- `make run EXAMPLE=cert_generate_ca` passes.
+- `make run EXAMPLE=cert_parse_and_print` passes.
+- `make run EXAMPLE=cert_sign_csr` passes.
+- `make run EXAMPLE=cert_verify_chain` passes.
+- `make run EXAMPLE=csr_generate` passes.
+- `make run EXAMPLE=enterprise` passes.
+- `make run EXAMPLE=simple_example` passes.
+- `make run EXAMPLE=simple_verify_client` passes.
+- `make run EXAMPLE=simple_verify_server` passes.
+- `make run EXAMPLE=trust_store_usage` passes.
+- `make run EXAMPLE=verify_direct` passes.
+
+## Known gaps
+
+- Cryptographic signature verification covers Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, ECDSA P-521/SHA-512, RSA PKCS#1 v1.5 with SHA-256/SHA-384/SHA-512, and RSA-PSS with SHA-256/SHA-384/SHA-512 for certificate, CSR, and CRL verification; unsupported/unknown signature families still report verification errors.
+- Trust-store support is partial: structural chain validation, default signature verification, validity checks, self-issued trust-anchor self-signature checks, revocation callbacks, and system bundle loading are implemented, but unsupported signature algorithms still report signature-verification errors.
+- Verify service support is partial: direct in-process transport including the C++ null-processor readiness/error surface, processor-failure catch boundary, custom direct-verifier handler construction, boxed/shared custom transport ergonomics, and client-delegated direct-verifier error surfaces, wire format, client, server, health check, simple revocation handler, Ed25519 response signing, and responder-certificate response verification exist, but concrete non-direct transports are not implemented yet.
+- Extracted `keylock::crypto::Context` is no longer the bare-minimum bridge: the sibling `../keylock` crate now owns the keylock crypto/hash/KDF/context surface with crate-backed Ed25519, ECDSA P-256, RSA, X25519 sealed box, symmetric AEAD/SecretBox, secp256k1, key import/export, hashes/HMAC/HKDF/KMAC, Argon2, and legacy hash helpers, while authbox keeps PKI, DID, and JSON.
+- Certificate builder support is partial: it can encode certificate structures, preserve TBS/signature bytes, and internally sign Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, ECDSA P-521/SHA-512, RSA PKCS#1 v1.5, and RSA-PSS certificates, but unsupported signature families still return signing errors.
+- CSR support is partial: it can parse/build CSR structures, preserve CRI/signature bytes, verify supported RSA/Ed25519/Ed448/ECDSA P-256/P-384/P-521 signatures, and internally sign Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, ECDSA P-521/SHA-512, RSA PKCS#1 v1.5, and RSA-PSS CSRs, but unsupported signature families still return errors.
+- CRL support is partial: it can parse/build CRL structures, preserve TBS/signature bytes, verify supported RSA/Ed25519/Ed448/ECDSA P-256/P-384/P-521 signatures, and internally sign Ed25519, Ed448, ECDSA P-256/SHA-256, ECDSA P-384/SHA-384, ECDSA P-521/SHA-512, RSA PKCS#1 v1.5, and RSA-PSS CRLs, but unsupported signature families still return errors.
+- Key utilities are partial: Ed25519/Ed448/ECDSA P-256/P-384/P-521 SPKI encode/decode, ECDSA P-256/P-384/P-521 SEC1 private-key encode/decode, encrypted PKCS#8 DER encrypt/decrypt plus PEM `ENCRYPTED PRIVATE KEY` wrappers, RSA public-key DER/blob normalization plus SPKI encode/decode, RSA private-key PKCS#1/PKCS#8 encode/decode for generated CRT-bearing keys, ecosystem-backed RSA/EdDSA/ECDSA signing/verification, `rsa`-crate-backed RSA key generation, and `getrandom`-backed EdDSA/ECDSA keypair generation are implemented.
+- JSON support is intentionally Rust/ecosystem-backed rather than a vendored-C-header clone: strict JSON uses `serde_json`, JSON5-shaped permissive input uses `json5`, and the local module keeps only the small authbox-facing wrapper/helpers needed by DID/PKI. C-header parse-result/location metadata, simplified/global-object/equal/no-comma forms, and allocator-backed single-allocation DOM layout APIs are not ported.
+- DID web fetching keeps the hierarchy-matched C++ header module and supports caller-allowed plain HTTP/1.1 plus HTTPS/TLS through the Rust `reqwest`/rustls ecosystem; the HTTPS path disables redirect following to match the C++ raw HTTP/1.1 non-redirect behavior, and the plain HTTP path has integration coverage for the C++ non-200 status, redirect-as-non-200, and max-response-size error texts; the C++ netpipe transport is intentionally not ported and no netpipe-named compatibility surface is kept.
+- The JSON module is now broader than the DID-only path but deliberately avoids exposing the C header's allocator-oriented single-block DOM API.
+- Every C++ `test_*.cpp` file under `xtra/authbox/test/` has a same-topic Rust module under `src/did/tests/` or `src/pki/tests/`; module-level parity is complete, and the consolidated Rust style (parameterized assertions per `#[test]`) covers every C++ `TEST_CASE`/`SUBCASE` scenario verified in the inspected modules.
+
+## Next steps
+
+The main translation goals are met. Remaining options if scope expands:
+
+1. Add a concrete non-direct verify-service transport (e.g. HTTP/JSON over `reqwest`) to replace what the C++ side wired through netpipe. The current Rust verify service only ships the direct in-process transport; the C++ remote transports were netpipe-specific and intentionally not ported.
+2. Add support for additional signature families (e.g. RSA-PSS with SHA-1, ECDSA on non-NIST curves) if needed by downstream callers; the current set already matches the C++ surface.
+3. Add HTTPS-path integration tests using a local self-signed TLS server (currently HTTPS coverage relies on the redirect-disabled `reqwest` client behavior plus the shared `fetch_did_document_http11` URL parsing path).

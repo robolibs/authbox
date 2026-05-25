@@ -1,0 +1,190 @@
+# authbox
+
+Pure-Rust PKI and DID toolkit, translated from `robolibs_cpp/authbox`. Provides
+X.509 certificate / CSR / CRL build-parse-verify, a DID resolver with built-in
+`did:key`, `did:jwk`, `did:dns`, `did:peer`, `did:pkh`, and `did:web` methods,
+and an in-process certificate verification service. Cryptographic primitives
+come from the sibling [`keylock`](../keylock) crate; authbox itself focuses on
+PKI, DID, and JSON helpers.
+
+```text
+authbox  ──depends on──>  ../keylock
+  │                            │
+  ├─ pki/                      ├─ crypto/  (Ed25519, ECDSA, RSA, X25519,
+  ├─ did/                      │           secp256k1, AEAD, SecretBox, RNG)
+  ├─ json/                     ├─ hash/    (SHA-2/3, BLAKE2, KMAC, HKDF, HMAC)
+  └─ io/                       └─ kdf/     (Argon2)
+```
+
+The C++ tree stays checked in under `xtra/authbox/` as the translation source.
+
+## Quick start
+
+Add the crate by path while the workspace is unpublished:
+
+```toml
+[dependencies]
+authbox = { path = "../authbox" }
+```
+
+### Generate and sign a self-signed Ed25519 certificate
+
+```rust
+use authbox::pki::{CertificateBuilder, DerTime, generate_ed25519_keypair, key_usage};
+
+let key = generate_ed25519_keypair()?;
+let cert = CertificateBuilder::new()
+    .set_subject_from_string("CN=Example,O=Example,C=US")?
+    .set_subject_public_key_ed25519(key.public_key.clone())
+    .set_validity(
+        DerTime { year: 2024, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
+        DerTime { year: 2025, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
+    )
+    .set_basic_constraints(false, None)?
+    .set_key_usage(key_usage::DIGITAL_SIGNATURE)?
+    .build_ed25519_with_self_signed(&key, true)?;
+
+println!("{}", cert.to_pem());
+```
+
+### Resolve a `did:key`
+
+```rust
+use authbox::did::{encode_ed25519_did_key, parse_did_key, resolve_did_key_document_json};
+use authbox::pki::generate_ed25519_keypair;
+
+let key = generate_ed25519_keypair()?;
+let public: [u8; 32] = key.public_key.as_slice().try_into()?;
+let did = encode_ed25519_did_key(public)?;
+println!("did:key: {did}");
+println!("{}", resolve_did_key_document_json(&did)?);
+```
+
+### Resolve a `did:web` document over HTTPS
+
+```rust
+use authbox::did::{WebFetchOptions, make_web_http11_resolver_with_options};
+
+let resolver = make_web_http11_resolver_with_options(WebFetchOptions::default());
+let resolved = resolver.resolve("did:web:example.com")?;
+println!("{}", resolved.raw_document_json);
+```
+
+## What's in the crate
+
+**PKI (`authbox::pki`)**
+
+- X.509 certificate, CSR, and CRL builders and parsers with `PemResult` /
+  `CertificateResult` / `CertValidationReport` wrappers.
+- Extension surface: `BasicConstraints`, `KeyUsage`, `ExtendedKeyUsage`,
+  `SubjectKeyIdentifier`, `AuthorityKeyIdentifier`, `SubjectAltName`, plus
+  enterprise extensions (Issuer Alternative Name, Policy Mappings,
+  Policy Constraints, Inhibit Any-Policy).
+- Signature support: Ed25519, Ed448, ECDSA P-256/P-384/P-521 with matching
+  SHA-2 hashes, RSA PKCS#1 v1.5 (SHA-256/384/512), and RSA-PSS with variable
+  salt lengths. Sign and verify across certs/CSRs/CRLs.
+- Trust store: PEM/DER auto-detect loader, structural chain validation,
+  revocation callbacks, system-bundle discovery.
+- Verify service: in-process `RequestProcessor` / `DirectTransport`, wire-format
+  codec, Ed25519-signed responses, processor-failure catch boundary.
+- Key utilities: SPKI encode/decode for every supported curve, SEC1
+  encode/decode for P-256/P-384/P-521, PKCS#8 + PEM `ENCRYPTED PRIVATE KEY`
+  helpers via the `pkcs8` crate, RSA PKCS#1 ↔ PKCS#8 conversions, keygen
+  backed by `rsa` and `getrandom`.
+
+**DID (`authbox::did`)**
+
+- `parse`, `parse_url`, dereferencing, document parsing and validation.
+- Built-in methods: `did:key`, `did:jwk`, `did:dns` (with DNSSEC filtering),
+  `did:peer`, `did:pkh` (with Ethereum-signature recovery), `did:web`.
+- `Resolver` with a method registry and a pluggable fetcher.
+- DID-RPC JSON codecs with loopback service and client.
+- `did:web` certificate binding (SAN ↔ DID URI), DID-document generation from
+  X.509 certificates.
+
+**JSON (`authbox::json`)**
+
+- Thin wrapper over `serde_json` for strict JSON and `json5` for permissive
+  JSON5-shaped input, plus DID/PKI-facing helpers (`json_string`, `json_array`,
+  `to_compact_string`, `to_pretty_string`, `escape`).
+
+**IO (`authbox::io`)**
+
+- Compatibility binary file helpers (`read_binary`, `write_binary`,
+  `BinaryReadResult`).
+
+## Examples
+
+Runnable examples mirror the C++ `xtra/authbox/examples/` layout.
+
+```sh
+cargo run --example simple_example
+cargo run --example did_key_roundtrip
+cargo run --example did_jwk_roundtrip
+cargo run --example did_rpc_loopback
+cargo run --example did_web_from_x509
+cargo run --example did_web_resolve_live -- did:web:example.com
+cargo run --example cert_generate_self_signed
+cargo run --example cert_generate_ca
+cargo run --example cert_parse_and_print
+cargo run --example cert_sign_csr
+cargo run --example cert_verify_chain
+cargo run --example csr_generate
+cargo run --example enterprise
+cargo run --example simple_verify_client
+cargo run --example simple_verify_server
+cargo run --example trust_store_usage
+cargo run --example verify_direct
+```
+
+`make run EXAMPLE=<name>` is equivalent.
+
+## Cargo features
+
+| Feature   | Effect                                |
+| --------- | ------------------------------------- |
+| `tracing` | Reserved hook for tracing integration |
+| `config`  | Reserved hook for runtime config      |
+
+The default feature set is empty; all PKI/DID surface is unconditional.
+
+## Verification
+
+Use the Makefile lanes for local checks:
+
+```sh
+make fmt
+make fmt-check
+make clippy
+make test
+make test-feature FEATURES="tracing config"
+make check
+make build
+make docs
+make run
+```
+
+`make run` defaults to `simple_example`; pass `EXAMPLE=<name>` for any of the
+examples above. CI runs fmt, clippy, the full test matrix, doc builds, and
+`cargo-deny` (advisories, licenses, sources, bans) on every PR.
+
+## Security
+
+- RSA primitives come from the pure-Rust `rsa` crate, which carries an
+  unpatched timing sidechannel (RUSTSEC-2023-0071, "Marvin Attack"). authbox
+  uses RSA primarily for signing and verification, where attacker-controlled
+  decryption inputs do not apply. Callers that decrypt attacker-controlled RSA
+  OAEP ciphertexts should treat the timing leak as a residual risk. CI ignores
+  this single advisory; all other `cargo audit` / `cargo deny` advisories are
+  enforced.
+- DER/ASN.1 parsing rejects indefinite lengths, overflowing long-form lengths,
+  and value lengths that exceed the input buffer.
+- DID document fetch enforces a max response size, disables redirect following
+  on the HTTPS path to match raw HTTP/1.1 behavior, and refuses plain HTTP
+  unless `allow_insecure_http` is set by the caller.
+- The C++ netpipe transport is intentionally not ported; HTTPS goes through
+  `reqwest`/`rustls` and HTTP/1.1 over `std::net`.
+
+## License
+
+MIT.

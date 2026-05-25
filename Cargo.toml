@@ -1,0 +1,119 @@
+[package]
+name = "authbox"
+version = "0.0.1"
+edition = "2024"
+description = "Pure Rust PKI and DID toolkit translated from robolibs_cpp/authbox"
+license = "MIT"
+readme = "README.md"
+publish = false
+include = [
+    "Cargo.toml",
+    "README.md",
+    "src/**/*.rs",
+    "tests/**/*.rs",
+    "examples/**/*.rs",
+]
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = []
+tracing = []
+config = []
+
+[dependencies]
+base64ct = { version = "1.8", features = ["alloc"] }
+blake2 = "0.10"
+bs58 = "0.5"
+crypto_secretbox = { version = "0.1", features = ["alloc"] }
+ed25519-dalek = { version = "2", features = ["pkcs8"] }
+ed448-goldilocks-plus = "0.16"
+getrandom = "0.2"
+httparse = "1"
+json5 = "0.4"
+keylock = { path = "../keylock" }
+p256 = "0.13"
+p384 = "0.13"
+p521 = "0.13"
+rand = "0.8"
+pkcs8 = { version = "0.10", features = ["encryption", "pem"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls-native-roots"] }
+rsa = { version = "0.9", features = ["sha2"] }
+sec1 = { version = "0.7", features = ["alloc"] }
+serde_json = "1"
+sha2 = "0.10"
+sha3 = "0.10"
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+
+[dev-dependencies]
+k256 = { version = "0.13", features = ["ecdsa"] }
+
+[[example]]
+name = "did_key_roundtrip"
+path = "examples/did/did_key_roundtrip.rs"
+
+[[example]]
+name = "did_jwk_roundtrip"
+path = "examples/did/did_jwk_roundtrip.rs"
+
+[[example]]
+name = "did_web_from_x509"
+path = "examples/did/did_web_from_x509.rs"
+
+[[example]]
+name = "did_web_resolve_live"
+path = "examples/did/did_web_resolve_live.rs"
+
+[[example]]
+name = "did_rpc_loopback"
+path = "examples/did/did_rpc_loopback.rs"
+
+[[example]]
+name = "cert_generate_ca"
+path = "examples/pki/cert_generate_ca.rs"
+
+[[example]]
+name = "cert_generate_self_signed"
+path = "examples/pki/cert_generate_self_signed.rs"
+
+[[example]]
+name = "cert_parse_and_print"
+path = "examples/pki/cert_parse_and_print.rs"
+
+[[example]]
+name = "cert_sign_csr"
+path = "examples/pki/cert_sign_csr.rs"
+
+[[example]]
+name = "cert_verify_chain"
+path = "examples/pki/cert_verify_chain.rs"
+
+[[example]]
+name = "csr_generate"
+path = "examples/pki/csr_generate.rs"
+
+[[example]]
+name = "enterprise"
+path = "examples/pki/enterprise.rs"
+
+[[example]]
+name = "simple_example"
+path = "examples/pki/simple_example.rs"
+
+[[example]]
+name = "simple_verify_client"
+path = "examples/pki/simple_verify_client.rs"
+
+[[example]]
+name = "simple_verify_server"
+path = "examples/pki/simple_verify_server.rs"
+
+[[example]]
+name = "trust_store_usage"
+path = "examples/pki/trust_store_usage.rs"
+
+[[example]]
+name = "verify_direct"
+path = "examples/pki/verify_direct.rs"
