@@ -1,8 +1,8 @@
 use authbox::pki::{
     Certificate, CertificateBuilder, CertificateData, DerTime, DistinguishedName,
     HealthCheckRequest, HealthCheckResponse, RequestFlags, RequestProcessor,
-    SimpleRevocationHandler, VerifyRequest, VerifyResponse, VerifyStatus, deserialize,
-    generate_ed25519_keypair, methods, serialize,
+    SimpleRevocationHandler, VerifyRequest, VerifyResponse, VerifyStatus, deserialize, methods,
+    serialize,
 };
 
 fn example_time(year: i32) -> DerTime {
@@ -20,7 +20,7 @@ fn make_test_certificate(
     subject: &DistinguishedName,
     serial: impl Into<Vec<u8>>,
 ) -> Result<Certificate, Box<dyn std::error::Error>> {
-    let keys = generate_ed25519_keypair()?;
+    let keys = authbox::keylock::generate_ed25519_keypair()?;
     Ok(CertificateBuilder::new()
         .set_version(3)
         .set_serial(serial)
@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Added 2 revoked certificates to the list\n");
 
     let mut processor = RequestProcessor::new(handler);
-    let signing_key = generate_ed25519_keypair()?;
+    let signing_key = authbox::keylock::generate_ed25519_keypair()?;
     processor.set_signing_key(signing_key.private_key)?;
 
     let subject = DistinguishedName::from_string("CN=Test Certificate,O=Example Organization")?;

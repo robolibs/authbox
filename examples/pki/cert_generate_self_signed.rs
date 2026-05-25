@@ -1,4 +1,4 @@
-use authbox::pki::{CertificateBuilder, DerTime, generate_ed25519_keypair, key_usage};
+use authbox::pki::{CertificateBuilder, DerTime, key_usage};
 
 fn example_time(year: i32) -> DerTime {
     DerTime {
@@ -12,7 +12,7 @@ fn example_time(year: i32) -> DerTime {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let subject_key = generate_ed25519_keypair()?;
+    let subject_key = authbox::keylock::generate_ed25519_keypair()?;
 
     let certificate = CertificateBuilder::new()
         .set_subject_from_string("CN=keylock Self-Signed,O=keylock,C=US")?

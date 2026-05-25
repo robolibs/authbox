@@ -311,6 +311,7 @@ fn key_utils_helpers_cover_rsa_spki_surface() {
         &KeyPair {
             public_key: generated.public_key.clone(),
             private_key: generated_private_blob,
+            algorithm: keylock::Algorithm::RsaPkcs1v15Sha256,
         },
     )
     .unwrap();

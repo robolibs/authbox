@@ -1,7 +1,4 @@
-use authbox::pki::{
-    Certificate, CertificateBuilder, DerTime, KeyPair, TrustStore, generate_ed25519_keypair,
-    key_usage,
-};
+use authbox::pki::{Certificate, CertificateBuilder, DerTime, KeyPair, TrustStore, key_usage};
 
 fn example_time(year: i32) -> DerTime {
     DerTime {
@@ -28,7 +25,7 @@ fn build_leaf(
     issuer: &Certificate,
     issuer_key: &KeyPair,
 ) -> Result<Certificate, Box<dyn std::error::Error>> {
-    let leaf_key = generate_ed25519_keypair()?;
+    let leaf_key = authbox::keylock::generate_ed25519_keypair()?;
     Ok(CertificateBuilder::new()
         .set_subject_from_string("CN=Trusted Client,O=keylock")?
         .set_issuer(issuer.tbs.subject.clone())
@@ -42,7 +39,7 @@ fn build_leaf(
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut store = TrustStore::new();
 
-    let anchor_key = generate_ed25519_keypair()?;
+    let anchor_key = authbox::keylock::generate_ed25519_keypair()?;
     let anchor = build_anchor(&anchor_key)?;
     store.add(anchor.clone());
     println!("Anchors loaded: {}", store.anchors().len());

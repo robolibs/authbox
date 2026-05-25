@@ -2,7 +2,7 @@ use super::super::*;
 
 #[test]
 fn did_key_encodes_and_parses_ed25519_keys() {
-    let keypair = crate::pki::generate_ed25519_keypair().unwrap();
+    let keypair = keylock::generate_ed25519_keypair().unwrap();
     assert_eq!(keypair.public_key.len(), 32);
 
     let public_key: [u8; 32] = keypair.public_key.as_slice().try_into().unwrap();
@@ -33,7 +33,7 @@ fn did_key_info_default_matches_cpp_value_initialized_aggregate() {
 
 #[test]
 fn did_key_resolves_document_json() {
-    let keypair = crate::pki::generate_ed25519_keypair().unwrap();
+    let keypair = keylock::generate_ed25519_keypair().unwrap();
     let public_key: [u8; 32] = keypair.public_key.as_slice().try_into().unwrap();
     let did = encode_ed25519_did_key(public_key).unwrap();
 
@@ -47,7 +47,7 @@ fn did_key_resolves_document_json() {
 
 #[test]
 fn did_key_resolver_supports_inline_resolution_without_network_fetcher() {
-    let keypair = crate::pki::generate_ed25519_keypair().unwrap();
+    let keypair = keylock::generate_ed25519_keypair().unwrap();
     let public_key: [u8; 32] = keypair.public_key.as_slice().try_into().unwrap();
     let did = encode_ed25519_did_key(public_key).unwrap();
 

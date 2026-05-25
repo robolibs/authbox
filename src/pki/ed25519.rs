@@ -1,8 +1,6 @@
-//! Ed25519 helpers.
+//! Ed25519 helpers — thin delegations into the sibling `keylock` crate.
 //!
-//! Keep the authbox-facing API in the mirrored PKI hierarchy, but delegate the
-//! actual Ed25519 implementation to the RustCrypto/dalek ecosystem instead of
-//! carrying hand-rolled Edwards arithmetic in this port.
+//! authbox owns PKI/X.509 framing; all crypto primitives live in keylock.
 
 use super::{PkiError, PkiResult};
 
@@ -17,36 +15,19 @@ pub fn verify_ed25519_signature(
     if signature.len() != 64 {
         return Ok(false);
     }
-
-    let public_key: [u8; 32] = public_key.try_into().expect("length checked");
-    let Ok(verifying_key) = ed25519_dalek::VerifyingKey::from_bytes(&public_key) else {
-        return Ok(false);
-    };
-    let signature = ed25519_dalek::Signature::from_slice(signature)
-        .map_err(|_| PkiError::new("Invalid Ed25519 signature size"))?;
-    Ok(verifying_key.verify_strict(message, &signature).is_ok())
+    Ok(keylock::crypto::ed25519::verify_detached(
+        signature, message, public_key,
+    ))
 }
 
 pub fn sign_ed25519_detached(message: &[u8], private_key: &[u8]) -> PkiResult<Vec<u8>> {
-    if private_key.len() != 64 {
-        return Err(PkiError::new("Invalid Ed25519 private key size"));
-    }
-    let keypair: [u8; 64] = private_key.try_into().expect("length checked");
-    let signing_key = ed25519_dalek::SigningKey::from_keypair_bytes(&keypair)
-        .map_err(|_| PkiError::new("Ed25519 private key public half mismatch"))?;
-    use ed25519_dalek::Signer as _;
-    Ok(signing_key.sign(message).to_bytes().to_vec())
+    keylock::crypto::ed25519::sign_detached(message, private_key).map_err(PkiError::new)
 }
 
 pub fn ed25519_public_key_from_seed(seed: &[u8]) -> PkiResult<Vec<u8>> {
-    if seed.len() != 32 {
-        return Err(PkiError::new("Invalid Ed25519 seed size"));
-    }
-    let seed: [u8; 32] = seed.try_into().expect("length checked");
-    Ok(ed25519_dalek::SigningKey::from_bytes(&seed)
-        .verifying_key()
-        .to_bytes()
-        .to_vec())
+    let (public_key, _) =
+        keylock::crypto::ed25519::keypair_from_seed(seed).map_err(PkiError::new)?;
+    Ok(public_key)
 }
 
 #[cfg(test)]

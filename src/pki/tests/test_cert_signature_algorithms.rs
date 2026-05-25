@@ -639,6 +639,7 @@ fn cert_signature_algorithms_builders_can_sign_ecdsa_p256_certificate_csr_and_cr
     let keypair = KeyPair {
         public_key: public_key.clone(),
         private_key,
+        algorithm: keylock::Algorithm::EcdsaP256Sha256,
     };
     let cert = CertificateBuilder::new()
         .set_serial_u64(0x126)

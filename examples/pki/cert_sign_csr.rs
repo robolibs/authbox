@@ -1,6 +1,5 @@
 use authbox::pki::{
-    Certificate, CertificateBuilder, CertificateResult, CsrBuilder, DerTime, KeyPair,
-    generate_ed25519_keypair, key_usage,
+    Certificate, CertificateBuilder, CertificateResult, CsrBuilder, DerTime, KeyPair, key_usage,
 };
 
 fn example_time(year: i32) -> DerTime {
@@ -43,10 +42,10 @@ fn make_sample_csr(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let ca_key = generate_ed25519_keypair()?;
+    let ca_key = authbox::keylock::generate_ed25519_keypair()?;
     let ca_cert = make_ca(&ca_key).into_result()?;
 
-    let leaf_key = generate_ed25519_keypair()?;
+    let leaf_key = authbox::keylock::generate_ed25519_keypair()?;
     let csr = make_sample_csr(&leaf_key)?;
 
     let issued = CertificateBuilder::new()

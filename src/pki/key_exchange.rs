@@ -1,7 +1,3 @@
-use blake2::{
-    Blake2bVar,
-    digest::{Update as _, VariableOutput as _},
-};
 use crypto_secretbox::{
     Nonce as XSalsa20Nonce, XSalsa20Poly1305,
     aead::{Aead, KeyInit},
@@ -446,12 +442,10 @@ pub fn read_u32(input: &[u8]) -> u32 {
 }
 
 pub fn blake2b_256(input: &[u8]) -> [u8; DIGEST_SIZE] {
+    let digest =
+        keylock::hash::blake2b::hash(input, DIGEST_SIZE).expect("valid BLAKE2b output size");
     let mut out = [0u8; DIGEST_SIZE];
-    let mut hasher = Blake2bVar::new(DIGEST_SIZE).expect("valid BLAKE2b output size");
-    hasher.update(input);
-    hasher
-        .finalize_variable(&mut out)
-        .expect("fixed-size BLAKE2b output buffer");
+    out.copy_from_slice(&digest);
     out
 }
 

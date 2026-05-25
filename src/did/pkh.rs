@@ -175,5 +175,5 @@ fn ethereum_personal_message_digest(message: &[u8]) -> [u8; 32] {
     let mut framed = Vec::with_capacity(prefix.len() + message.len());
     framed.extend_from_slice(prefix.as_bytes());
     framed.extend_from_slice(message);
-    crate::pki::keccak256(&framed)
+    keylock::keccak256(&framed)
 }

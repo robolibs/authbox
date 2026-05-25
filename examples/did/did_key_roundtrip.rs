@@ -1,5 +1,5 @@
 use authbox::did::{encode_ed25519_did_key, parse_did_key, resolve_did_key_document_json};
-use authbox::pki::generate_ed25519_keypair;
+use authbox::keylock::generate_ed25519_keypair;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let keypair = generate_ed25519_keypair()?;

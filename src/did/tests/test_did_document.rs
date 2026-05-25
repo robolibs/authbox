@@ -125,7 +125,7 @@ fn did_document_public_key_jwk_requires_cpp_fields() {
 
 #[test]
 fn did_document_generates_did_web_document_from_certificate_and_verifies_binding() {
-    let keypair = crate::pki::generate_ed25519_keypair().unwrap();
+    let keypair = keylock::generate_ed25519_keypair().unwrap();
     let did_uri = "did:web:example.com";
     let certificate = crate::pki::CertificateBuilder::new()
         .set_serial_u64(0x5d1d)
@@ -211,7 +211,7 @@ fn did_document_x509_helpers_preserve_cpp_raw_error_messages() {
 
 #[test]
 fn did_document_x509_binding_errors_preserve_cpp_raw_messages() {
-    let keypair = crate::pki::generate_ed25519_keypair().unwrap();
+    let keypair = keylock::generate_ed25519_keypair().unwrap();
     let cert_did_uri = "did:web:device.example";
     let requested_did_uri = "did:web:other.example";
     let certificate = crate::pki::CertificateBuilder::new()
@@ -261,7 +261,7 @@ fn did_document_x509_binding_errors_preserve_cpp_raw_messages() {
         "Certificate does not contain matching DID URI in SAN"
     );
 
-    let other_key = crate::pki::generate_ed25519_keypair().unwrap();
+    let other_key = keylock::generate_ed25519_keypair().unwrap();
     let cert_doc =
         x509::generate_did_web_document("device.example", &other_key.public_key).unwrap();
     let document = parse_document(&cert_doc.did_document_json).unwrap();

@@ -1,6 +1,4 @@
-use authbox::pki::{
-    Certificate, CertificateBuilder, DerTime, Verifier, VerifyStatus, generate_ed25519_keypair,
-};
+use authbox::pki::{Certificate, CertificateBuilder, DerTime, Verifier, VerifyStatus};
 
 fn example_time(year: i32) -> DerTime {
     DerTime {
@@ -14,7 +12,7 @@ fn example_time(year: i32) -> DerTime {
 }
 
 fn generated_certificate() -> Result<Certificate, Box<dyn std::error::Error>> {
-    let keys = generate_ed25519_keypair()?;
+    let keys = authbox::keylock::generate_ed25519_keypair()?;
     Ok(CertificateBuilder::new()
         .set_subject_from_string("CN=Local Verification Demo")?
         .set_issuer_from_string("CN=Local Verification Demo")?

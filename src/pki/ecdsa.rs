@@ -1,9 +1,6 @@
-//! ECDSA helpers.
+//! ECDSA helpers — thin delegations into the sibling `keylock` crate.
 //!
-//! The authbox-facing helper names stay in the mirrored PKI hierarchy, but the
-//! curve operations are delegated to the RustCrypto P-256/P-384/P-521 crates.
-
-use p256::ecdsa::signature::{Signer as _, Verifier as _};
+//! authbox owns PKI/X.509 framing; all ECDSA primitives live in keylock.
 
 use super::{PkiError, PkiResult};
 
@@ -12,11 +9,8 @@ pub fn verify_ecdsa_p256_sha256(
     signature: &[u8],
     public_key: &[u8],
 ) -> PkiResult<bool> {
-    let public_key = normalize_sec1_public_key(public_key, 32, "P-256")?;
-    let verifying_key = p256::ecdsa::VerifyingKey::from_sec1_bytes(&public_key)
-        .map_err(|_| PkiError::new("Invalid ECDSA P-256 public key format"))?;
-    let signature = parse_p256_signature(signature)?;
-    Ok(verifying_key.verify(message, &signature).is_ok())
+    keylock::crypto::ecdsa_p256::verify_detached(message, signature, public_key)
+        .map_err(PkiError::new)
 }
 
 pub fn verify_ecdsa_p384_sha384(
@@ -24,16 +18,8 @@ pub fn verify_ecdsa_p384_sha384(
     signature: &[u8],
     public_key: &[u8],
 ) -> PkiResult<bool> {
-    let public_key = normalize_sec1_public_key(public_key, 48, "P-384")?;
-    let verifying_key = p384::ecdsa::VerifyingKey::from_sec1_bytes(&public_key)
-        .map_err(|_| PkiError::new("Invalid ECDSA P-384 public key format"))?;
-    let signature = if signature.len() == 96 {
-        p384::ecdsa::Signature::from_slice(signature)
-    } else {
-        p384::ecdsa::Signature::from_der(signature)
-    }
-    .map_err(|_| PkiError::new("Invalid ECDSA P-384 signature format"))?;
-    Ok(verifying_key.verify(message, &signature).is_ok())
+    keylock::crypto::ecdsa_p384::verify_detached(message, signature, public_key)
+        .map_err(PkiError::new)
 }
 
 pub fn verify_ecdsa_p521_sha512(
@@ -41,173 +27,59 @@ pub fn verify_ecdsa_p521_sha512(
     signature: &[u8],
     public_key: &[u8],
 ) -> PkiResult<bool> {
-    let public_key = normalize_sec1_public_key(public_key, 66, "P-521")?;
-    let verifying_key = p521::ecdsa::VerifyingKey::from_sec1_bytes(&public_key)
-        .map_err(|_| PkiError::new("Invalid ECDSA P-521 public key format"))?;
-    let signature = if signature.len() == 132 {
-        p521::ecdsa::Signature::from_slice(signature)
-    } else {
-        p521::ecdsa::Signature::from_der(signature)
-    }
-    .map_err(|_| PkiError::new("Invalid ECDSA P-521 signature format"))?;
-    Ok(verifying_key.verify(message, &signature).is_ok())
+    keylock::crypto::ecdsa_p521::verify_detached(message, signature, public_key)
+        .map_err(PkiError::new)
 }
 
 pub fn sign_ecdsa_p256_sha256(message: &[u8], private_key: &[u8]) -> PkiResult<Vec<u8>> {
-    let signing_key = p256_signing_key(private_key)?;
-    let signature: p256::ecdsa::Signature = signing_key.sign(message);
-    Ok(signature.to_bytes().to_vec())
+    keylock::crypto::ecdsa_p256::sign_detached(message, private_key).map_err(PkiError::new)
 }
 
 pub fn sign_ecdsa_p384_sha384(message: &[u8], private_key: &[u8]) -> PkiResult<Vec<u8>> {
-    let signing_key = p384_signing_key(private_key)?;
-    let signature: p384::ecdsa::Signature = signing_key.sign(message);
-    Ok(signature.to_bytes().to_vec())
+    keylock::crypto::ecdsa_p384::sign_detached(message, private_key).map_err(PkiError::new)
 }
 
 pub fn sign_ecdsa_p521_sha512(message: &[u8], private_key: &[u8]) -> PkiResult<Vec<u8>> {
-    let signing_key = p521_signing_key(private_key)?;
-    let signature: p521::ecdsa::Signature = signing_key.sign(message);
-    Ok(signature.to_bytes().to_vec())
+    keylock::crypto::ecdsa_p521::sign_detached(message, private_key).map_err(PkiError::new)
 }
 
+/// Compatibility-only helper. The fixed-nonce surface is preserved so existing
+/// PKI test vectors keep their call shape; the actual signature is produced by
+/// keylock's deterministic-by-default P-256 signer (the nonce is validated for
+/// length and non-zero but not threaded into the inner RFC 6979 derivation).
 pub fn sign_ecdsa_p256_sha256_with_nonce(
     message: &[u8],
     private_key: &[u8],
     nonce: &[u8],
 ) -> PkiResult<Vec<u8>> {
-    // Preserve the existing helper surface and scalar validation, but avoid
-    // carrying local P-256 arithmetic just to force a nonce in production code.
-    // RustCrypto's signer uses the crate's ECDSA implementation for the actual
-    // operation.
-    p256_scalar_bytes(nonce, "invalid ECDSA nonce")?;
+    if nonce.is_empty() || nonce.iter().all(|byte| *byte == 0) {
+        return Err(PkiError::new("invalid ECDSA nonce"));
+    }
     sign_ecdsa_p256_sha256(message, private_key)
 }
 
 pub fn p256_public_key_from_private(private_key: &[u8]) -> PkiResult<Vec<u8>> {
-    let signing_key = p256_signing_key(private_key)?;
-    let point = signing_key.verifying_key().to_encoded_point(false);
-    let bytes = point.as_bytes();
-    if bytes.len() != 65 || bytes[0] != 0x04 {
-        return Err(PkiError::new("invalid P-256 private key"));
-    }
-    Ok(bytes[1..].to_vec())
+    keylock::crypto::ecdsa_p256::derive_public_key(private_key).map_err(PkiError::new)
 }
 
 pub fn p384_public_key_from_private(private_key: &[u8]) -> PkiResult<Vec<u8>> {
-    let signing_key = p384_signing_key(private_key)?;
-    let point = signing_key.verifying_key().to_encoded_point(false);
-    let bytes = point.as_bytes();
-    if bytes.len() != 97 || bytes[0] != 0x04 {
-        return Err(PkiError::new("invalid P-384 private key"));
-    }
-    Ok(bytes[1..].to_vec())
+    keylock::crypto::ecdsa_p384::public_key_from_private(private_key).map_err(PkiError::new)
 }
 
 pub fn p521_public_key_from_private(private_key: &[u8]) -> PkiResult<Vec<u8>> {
-    let signing_key = p521_signing_key(private_key)?;
-    let verifying_key = p521::ecdsa::VerifyingKey::from(&signing_key);
-    let point = verifying_key.to_encoded_point(false);
-    let bytes = point.as_bytes();
-    if bytes.len() != 133 || bytes[0] != 0x04 {
-        return Err(PkiError::new("invalid P-521 private key"));
-    }
-    Ok(bytes[1..].to_vec())
+    keylock::crypto::ecdsa_p521::public_key_from_private(private_key).map_err(PkiError::new)
 }
 
 pub fn encode_ecdsa_p256_signature_der(signature: &[u8]) -> PkiResult<Vec<u8>> {
-    if signature.len() != 64 {
-        return Err(PkiError::new("Unexpected ECDSA raw signature size"));
-    }
-    let signature = p256::ecdsa::Signature::from_slice(signature)
-        .map_err(|_| PkiError::new("Invalid ECDSA P-256 signature format"))?;
-    Ok(signature.to_der().as_bytes().to_vec())
+    keylock::crypto::ecdsa_p256::signature_to_der(signature).map_err(PkiError::new)
 }
 
 pub fn encode_ecdsa_p384_signature_der(signature: &[u8]) -> PkiResult<Vec<u8>> {
-    if signature.len() != 96 {
-        return Err(PkiError::new("Unexpected ECDSA raw signature size"));
-    }
-    let signature = p384::ecdsa::Signature::from_slice(signature)
-        .map_err(|_| PkiError::new("Invalid ECDSA P-384 signature format"))?;
-    Ok(signature.to_der().as_bytes().to_vec())
+    keylock::crypto::ecdsa_p384::signature_to_der(signature).map_err(PkiError::new)
 }
 
 pub fn encode_ecdsa_p521_signature_der(signature: &[u8]) -> PkiResult<Vec<u8>> {
-    if signature.len() != 132 {
-        return Err(PkiError::new("Unexpected ECDSA raw signature size"));
-    }
-    let signature = p521::ecdsa::Signature::from_slice(signature)
-        .map_err(|_| PkiError::new("Invalid ECDSA P-521 signature format"))?;
-    Ok(signature.to_der().as_bytes().to_vec())
-}
-
-fn parse_p256_signature(input: &[u8]) -> PkiResult<p256::ecdsa::Signature> {
-    if input.len() == 64 {
-        p256::ecdsa::Signature::from_slice(input)
-    } else {
-        p256::ecdsa::Signature::from_der(input)
-    }
-    .map_err(|_| PkiError::new("Invalid ECDSA P-256 signature format"))
-}
-
-fn p256_signing_key(private_key: &[u8]) -> PkiResult<p256::ecdsa::SigningKey> {
-    let scalar = p256_scalar_bytes(private_key, "invalid P-256 private key")?;
-    p256::ecdsa::SigningKey::from_slice(&scalar)
-        .map_err(|_| PkiError::new("invalid P-256 private key"))
-}
-
-fn p384_signing_key(private_key: &[u8]) -> PkiResult<p384::ecdsa::SigningKey> {
-    let scalar = scalar_bytes(private_key, 48, "invalid P-384 private key")?;
-    p384::ecdsa::SigningKey::from_slice(&scalar)
-        .map_err(|_| PkiError::new("invalid P-384 private key"))
-}
-
-fn p521_signing_key(private_key: &[u8]) -> PkiResult<p521::ecdsa::SigningKey> {
-    let scalar = scalar_bytes(private_key, 66, "invalid P-521 private key")?;
-    p521::ecdsa::SigningKey::from_slice(&scalar)
-        .map_err(|_| PkiError::new("invalid P-521 private key"))
-}
-
-fn p256_scalar_bytes(input: &[u8], error: &str) -> PkiResult<[u8; 32]> {
-    let scalar = scalar_bytes(input, 32, error)?;
-    scalar
-        .try_into()
-        .map_err(|_| PkiError::new(error.to_string()))
-}
-
-fn scalar_bytes(input: &[u8], scalar_len: usize, error: &str) -> PkiResult<Vec<u8>> {
-    let mut value = input;
-    while value.len() > 1 && value.first() == Some(&0) {
-        value = &value[1..];
-    }
-    if value.is_empty() || value.len() > scalar_len || value.iter().all(|byte| *byte == 0) {
-        return Err(PkiError::new(error));
-    }
-    let mut out = vec![0u8; scalar_len];
-    out[scalar_len - value.len()..].copy_from_slice(value);
-    Ok(out)
-}
-
-fn normalize_sec1_public_key(
-    input: &[u8],
-    coordinate_len: usize,
-    curve: &str,
-) -> PkiResult<Vec<u8>> {
-    let uncompressed_len = coordinate_len * 2 + 1;
-    let raw_len = coordinate_len * 2;
-    if input.len() == uncompressed_len && input[0] == 0x04 {
-        Ok(input.to_vec())
-    } else if input.len() == raw_len {
-        let mut out = Vec::with_capacity(uncompressed_len);
-        out.push(0x04);
-        out.extend_from_slice(input);
-        Ok(out)
-    } else {
-        Err(PkiError::new(format!(
-            "Invalid ECDSA {curve} public key format"
-        )))
-    }
+    keylock::crypto::ecdsa_p521::signature_to_der(signature).map_err(PkiError::new)
 }
 
 #[cfg(test)]

@@ -1,11 +1,9 @@
 use super::{
     AlgorithmIdentifier, CurveId, HashAlgorithm, PkiError, PkiResult, SignatureAlgorithmId,
-    SubjectPublicKeyInfo, der, ed448_public_key_from_seed, ed25519_public_key_from_seed,
-    encode_certificate_subject_public_key_info, p256_public_key_from_private,
-    p384_public_key_from_private, p521_public_key_from_private, parse_rsa_public_key,
-    rsa_private_key_blob_with_primes, rsa_public_key_blob,
+    SubjectPublicKeyInfo, der, encode_certificate_subject_public_key_info,
+    p256_public_key_from_private, p384_public_key_from_private, p521_public_key_from_private,
+    parse_rsa_public_key, rsa_public_key_blob,
 };
-use ::rsa::traits::{PrivateKeyParts, PublicKeyParts};
 use ::sec1::{
     EcParameters, EcPrivateKey,
     der::{Encode as _, asn1::ObjectIdentifier},
@@ -15,77 +13,43 @@ const P256_NAMED_CURVE_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2
 const P384_NAMED_CURVE_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.132.0.34");
 const P521_NAMED_CURVE_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.132.0.35");
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct KeyPair {
-    pub public_key: Vec<u8>,
-    pub private_key: Vec<u8>,
+/// `KeyPair` is re-exported from [`keylock::crypto::KeyPair`] — all keygen lives
+/// in the sibling `keylock` crate. authbox keeps only PKI-specific glue here.
+pub use keylock::crypto::KeyPair;
+
+fn to_pki(result: Result<KeyPair, String>) -> PkiResult<KeyPair> {
+    result.map_err(PkiError::new)
 }
 
 pub fn generate_ed25519_keypair() -> PkiResult<KeyPair> {
-    let mut seed = [0u8; 32];
-    fill_random(&mut seed)?;
-    let public_key = ed25519_public_key_from_seed(&seed)?;
-    let mut private_key = seed.to_vec();
-    private_key.extend(&public_key);
-    Ok(KeyPair {
-        public_key,
-        private_key,
-    })
+    to_pki(keylock::generate_ed25519_keypair())
 }
 
 pub fn generate_ed448_keypair() -> PkiResult<KeyPair> {
-    let mut seed = [0u8; 57];
-    fill_random(&mut seed)?;
-    let public_key = ed448_public_key_from_seed(&seed)?;
-    let mut private_key = seed.to_vec();
-    private_key.extend(&public_key);
-    Ok(KeyPair {
-        public_key,
-        private_key,
-    })
+    to_pki(keylock::generate_ed448_keypair())
 }
 
 pub fn generate_ecdsa_p256_keypair() -> PkiResult<KeyPair> {
-    generate_ecdsa_keypair(32, p256_public_key_from_private, "P-256")
+    to_pki(keylock::generate_ecdsa_p256_keypair())
 }
 
 pub fn generate_ecdsa_p384_keypair() -> PkiResult<KeyPair> {
-    generate_ecdsa_keypair(48, p384_public_key_from_private, "P-384")
+    to_pki(keylock::generate_ecdsa_p384_keypair())
 }
 
 pub fn generate_ecdsa_p521_keypair() -> PkiResult<KeyPair> {
-    generate_ecdsa_keypair(66, p521_public_key_from_private, "P-521")
+    to_pki(keylock::generate_ecdsa_p521_keypair())
 }
 
 pub fn generate_rsa_keypair(bits: usize) -> PkiResult<KeyPair> {
     if bits < 1024 {
         return Err(PkiError::new("RSA key size must be at least 1024 bits"));
     }
-    let mut rng = rand::rngs::OsRng;
-    let private_key = ::rsa::RsaPrivateKey::new(&mut rng, bits)
-        .map_err(|err| PkiError::new(format!("failed to generate RSA keypair: {err}")))?;
-    let public_key = ::rsa::RsaPublicKey::from(&private_key);
-    let modulus = public_key.n().to_bytes_be();
-    let public_exponent = public_key.e().to_bytes_be();
-    let private_exponent = private_key.d().to_bytes_be();
-    let primes = private_key
-        .primes()
-        .iter()
-        .map(|prime| prime.to_bytes_be())
-        .collect::<Vec<_>>();
-    Ok(KeyPair {
-        public_key: rsa_public_key_blob(&modulus, &public_exponent),
-        private_key: rsa_private_key_blob_with_primes(
-            &modulus,
-            &public_exponent,
-            &private_exponent,
-            &primes,
-        ),
-    })
+    to_pki(keylock::generate_rsa_keypair_with_bits(bits))
 }
 
 pub fn generate_rsa_2048_keypair() -> PkiResult<KeyPair> {
-    generate_rsa_keypair(2048)
+    to_pki(keylock::generate_rsa_keypair_with_bits(2048))
 }
 
 pub fn ed25519_subject_public_key_info(public_key: impl Into<Vec<u8>>) -> SubjectPublicKeyInfo {
@@ -416,26 +380,6 @@ pub fn decrypt_pkcs8_private_key_pem(pem: &str, password: &[u8]) -> PkiResult<Ve
     decrypt_pkcs8_private_key_der(&block.data, password)
 }
 
-fn generate_ecdsa_keypair(
-    private_key_len: usize,
-    derive_public_key: fn(&[u8]) -> PkiResult<Vec<u8>>,
-    curve: &str,
-) -> PkiResult<KeyPair> {
-    for _ in 0..1024 {
-        let mut private_key = vec![0u8; private_key_len];
-        fill_random(&mut private_key)?;
-        if let Ok(public_key) = derive_public_key(&private_key) {
-            return Ok(KeyPair {
-                public_key,
-                private_key,
-            });
-        }
-    }
-    Err(PkiError::new(format!(
-        "failed to generate valid ECDSA {curve} keypair"
-    )))
-}
-
 fn raw_ecdsa_public_key_from_spki(
     spki_der: &[u8],
     signature: SignatureAlgorithmId,
@@ -511,9 +455,4 @@ fn normalize_ec_private_key(
     let offset = coordinate_len - private_key.len();
     out[offset..].copy_from_slice(private_key);
     Ok(out)
-}
-
-#[cfg(unix)]
-fn fill_random(out: &mut [u8]) -> PkiResult<()> {
-    super::random::fill_random(out)
 }

@@ -1,7 +1,7 @@
-use authbox::pki::{CsrBuilder, generate_ed25519_keypair, pem_encode, write_binary_result};
+use authbox::pki::{CsrBuilder, pem_encode, write_binary_result};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let subject_key = generate_ed25519_keypair()?;
+    let subject_key = authbox::keylock::generate_ed25519_keypair()?;
 
     let csr = CsrBuilder::new()
         .set_subject_from_string("CN=keylock Client,O=keylock")?

@@ -68,8 +68,11 @@ pub fn parse_rsa_private_key_blob(blob: &[u8]) -> PkiResult<RsaPrivateKey> {
     if offset < blob.len() {
         primes.push(read_len_prefixed(blob, &mut offset, "prime2")?);
     }
-    if offset != blob.len() {
-        return Err(PkiError::new("Trailing bytes in RSA private key blob"));
+    // keylock's CRT-extended blob layout appends `dp || dq || qinv`. Skip
+    // those length-prefixed fields if present so blobs produced by keylock
+    // round-trip through the authbox parser.
+    while offset < blob.len() {
+        read_len_prefixed(blob, &mut offset, "crt parameter")?;
     }
     validate_rsa_private_numbers(
         strip_integer_padding(modulus),

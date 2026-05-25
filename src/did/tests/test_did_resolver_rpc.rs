@@ -7,7 +7,7 @@ fn make_test_cert_with_did(
     crate::pki::KeyPair,
     x509::DidWebDocumentBundle,
 ) {
-    let keypair = crate::pki::generate_ed25519_keypair().unwrap();
+    let keypair = keylock::generate_ed25519_keypair().unwrap();
     let cert = crate::pki::CertificateBuilder::new()
         .set_serial_u64(0x720c)
         .set_subject_from_string("CN=example.com,O=Example")

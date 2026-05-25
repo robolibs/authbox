@@ -1,7 +1,4 @@
-use authbox::pki::{
-    Certificate, CertificateBuilder, DerTime, HashAlgorithm, digest, generate_ed25519_keypair,
-    key_usage,
-};
+use authbox::pki::{Certificate, CertificateBuilder, DerTime, HashAlgorithm, digest, key_usage};
 
 fn example_time(year: i32) -> DerTime {
     DerTime {
@@ -19,7 +16,7 @@ fn to_hex(bytes: &[u8]) -> String {
 }
 
 fn fallback_certificate() -> Result<Certificate, Box<dyn std::error::Error>> {
-    let keypair = generate_ed25519_keypair()?;
+    let keypair = authbox::keylock::generate_ed25519_keypair()?;
     Ok(CertificateBuilder::new()
         .set_subject_from_string("CN=On-The-Fly Cert,O=keylock")?
         .set_subject_public_key_ed25519(keypair.public_key.clone())

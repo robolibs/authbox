@@ -2,9 +2,7 @@ use authbox::did::{
     Resolver, generate_did_web_document_from_certificate,
     rpc::{Client as DidRpcClient, LoopbackRemote, Service},
 };
-use authbox::pki::{
-    CertificateBuilder, DerTime, GeneralName, GeneralNameType, generate_ed25519_keypair,
-};
+use authbox::pki::{CertificateBuilder, DerTime, GeneralName, GeneralNameType};
 
 fn example_time(year: i32) -> DerTime {
     DerTime {
@@ -19,7 +17,7 @@ fn example_time(year: i32) -> DerTime {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let did_uri = "did:web:example.com";
-    let keypair = generate_ed25519_keypair()?;
+    let keypair = authbox::keylock::generate_ed25519_keypair()?;
     let did_name = GeneralName {
         type_: GeneralNameType::Uri,
         value: did_uri.as_bytes().to_vec(),

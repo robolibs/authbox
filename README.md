@@ -3,9 +3,12 @@
 Pure-Rust PKI and DID toolkit, translated from `robolibs_cpp/authbox`. Provides
 X.509 certificate / CSR / CRL build-parse-verify, a DID resolver with built-in
 `did:key`, `did:jwk`, `did:dns`, `did:peer`, `did:pkh`, and `did:web` methods,
-and an in-process certificate verification service. Cryptographic primitives
-come from the sibling [`keylock`](../keylock) crate; authbox itself focuses on
-PKI, DID, and JSON helpers.
+and an in-process certificate verification service. All cryptographic
+primitives (keygen, signing, hashing, AEAD) live in the sibling
+[`keylock`](../keylock) crate; authbox itself focuses on PKI, DID, and JSON
+helpers. Call `keylock::generate_*_keypair()` for keys and
+`keylock::keccak256()` / `keylock::hash::*` for hashes — `authbox::keylock` is
+the same crate re-exported for convenience.
 
 ```text
 authbox  ──depends on──>  ../keylock
@@ -30,7 +33,8 @@ authbox = { path = "../authbox" }
 ### Generate and sign a self-signed Ed25519 certificate
 
 ```rust
-use authbox::pki::{CertificateBuilder, DerTime, generate_ed25519_keypair, key_usage};
+use authbox::keylock::generate_ed25519_keypair;
+use authbox::pki::{CertificateBuilder, DerTime, key_usage};
 
 let key = generate_ed25519_keypair()?;
 let cert = CertificateBuilder::new()
@@ -51,7 +55,7 @@ println!("{}", cert.to_pem());
 
 ```rust
 use authbox::did::{encode_ed25519_did_key, parse_did_key, resolve_did_key_document_json};
-use authbox::pki::generate_ed25519_keypair;
+use authbox::keylock::generate_ed25519_keypair;
 
 let key = generate_ed25519_keypair()?;
 let public: [u8; 32] = key.public_key.as_slice().try_into()?;
