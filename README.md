@@ -6,32 +6,39 @@ X.509 certificate / CSR / CRL build-parse-verify, a DID resolver with built-in
 and an in-process certificate verification service.
 
 **Crypto boundary.** Every cryptographic primitive — keygen, signing, verifying,
-hashing, AEAD, RNG — lives in the sibling [`keylock`](../keylock) crate. authbox
-itself contains only PKI / DID / JSON framing. Always import primitives from
-`keylock` directly: `keylock::generate_*_keypair()` for keys,
-`keylock::keccak256` / `keylock::hash::*` for hashes, and `keylock::crypto::*`
-for everything else.
+hashing, AEAD, RNG — lives in the sibling
+[`keylock`](https://codeberg.org/robolibs/keylock) crate. authbox itself
+contains only PKI / DID / JSON framing. authbox does **not** re-export keylock;
+consumers must add keylock as their own direct dependency and import primitives
+from it directly: `keylock::generate_*_keypair()` for keys, `keylock::keccak256`
+/ `keylock::hash::*` for hashes, and `keylock::crypto::*` for everything else.
 
 ```text
-authbox  ──depends on──>  ../keylock
-  │                            │
-  ├─ pki/                      ├─ crypto/  (Ed25519, Ed448, ECDSA P-256/384/521,
-  ├─ did/                      │            secp256k1, RSA, X25519, AEAD, RNG)
-  ├─ json/                     ├─ hash/    (SHA-2/3, BLAKE2, KMAC, HKDF, HMAC,
-  └─ io/                       │            Keccak-256, SHAKE, KMAC, …)
-                               └─ kdf/     (Argon2)
+authbox                                      keylock
+  │                                            │
+  ├─ pki/   ──depends on────────────────►      ├─ crypto/  (Ed25519, Ed448,
+  ├─ did/                                      │            ECDSA P-256/384/521,
+  ├─ json/                                     │            secp256k1, RSA,
+  └─ io/                                       │            X25519, AEAD, RNG)
+                                               ├─ hash/    (SHA-2/3, BLAKE2,
+                                               │            KMAC, HKDF, HMAC,
+                                               │            Keccak-256, SHAKE,
+                                               │            KMAC, …)
+                                               └─ kdf/     (Argon2)
 ```
 
 The C++ tree stays checked in under `xtra/authbox/` as the translation source.
 
 ## Quick start
 
-Add the crate by path while the workspace is unpublished:
-
 ```toml
 [dependencies]
-authbox = { path = "../authbox" }
+authbox = { git = "https://codeberg.org/robolibs/authbox.git" }
+keylock = { git = "https://codeberg.org/robolibs/keylock.git", tag = "0.1.0" }
 ```
+
+authbox itself pins keylock to the same codeberg tag, so the two crates always
+resolve to one shared version of every primitive.
 
 ### Generate and sign a self-signed Ed25519 certificate
 
