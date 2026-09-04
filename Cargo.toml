@@ -1,6 +1,6 @@
 [package]
 name = "authbox"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Pure Rust PKI and DID toolkit translated from robolibs_cpp/authbox"
 license = "MIT"
