@@ -30,7 +30,7 @@ crypto_secretbox = { version = "0.1", features = ["alloc"] }
 getrandom = "0.2"
 httparse = "1"
 json5 = "0.4"
-keylock = { git = "https://codeberg.org/robolibs/keylock.git", tag = "0.1.0" }
+keylock = { git = "https://codeberg.org/robolibs/keylock.git", tag = "0.1.1" }
 rand = "0.8"
 pkcs8 = { version = "0.10", features = ["encryption", "pem"] }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls-native-roots"] }
