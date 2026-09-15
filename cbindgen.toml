@@ -1,0 +1,44 @@
+language = "C"
+include_guard = "AUTHBOX_H"
+cpp_compat = true
+documentation = true
+style = "type"
+no_includes = false
+sys_includes = ["stdbool.h", "stddef.h", "stdint.h"]
+
+[parse]
+parse_deps = false
+
+[enum]
+rename_variants = "QualifiedScreamingSnakeCase"
+prefix_with_name = true
+
+[export]
+include = [
+    "AuthboxBytes",
+    "authbox_last_error_message",
+    "authbox_string_free",
+    "authbox_version",
+    "authbox_did_is_uri",
+    "authbox_did_web_document_url",
+    "authbox_did_key_encode_ed25519",
+    "authbox_did_key_resolve_document_json",
+    "authbox_sha256",
+    "authbox_keccak256",
+]
+exclude = [
+    "CertificateFormat",
+    "CertificatePurpose",
+    "CrlExtensionId",
+    "CryptographicStrength",
+    "DidErrorCode",
+    "DidKeyType",
+    "ExtensionId",
+    "GeneralNameType",
+    "HashAlgorithm",
+    "JsonParseFlags",
+    "KeyPurposeId",
+    "PrivacyRisk",
+    "RequestFlags",
+]
+item_types = ["structs", "functions", "typedefs", "opaque"]

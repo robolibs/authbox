@@ -1,89 +1,109 @@
 {
-  description = "quicbit Rust library development shell";
+  description = "robolibs crate development shell";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    rust-overlay.url = "github:oxalica/rust-overlay";
+    # Pinned to a rev that still accepts the `kernel` arg in
+    # nvidia-x11/generic.nix. Newer nixpkgs (post 2026-04) dropped
+    # that arg, which breaks nixGL until upstream catches up. Bump
+    # together with nixgl when its corresponding fix lands.
+    nixpkgs.url = "github:NixOS/nixpkgs?rev=4c1018dae018162ec878d42fec712642d214fdfa";
+    rust-overlay.url = "github:oxalica/rust-overlay?rev=3c27f4c92a7d977556dd2c10bb564d9c61b375e9";
     flake-utils.url = "github:numtide/flake-utils";
+    nixgl.url = "github:nix-community/nixGL";
   };
 
   outputs =
-    { nixpkgs, rust-overlay, flake-utils, ... }:
+    { nixpkgs, rust-overlay, flake-utils, nixgl, ... }:
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        overlays = [ (import rust-overlay) ];
+        overlays = [
+          (final: prev: {
+            xorg = prev.xorg // {
+              libX11 = final.libx11;
+              libxcb = final.libxcb;
+              libxshmfence = final.libxshmfence;
+            };
+          })
+          (import rust-overlay)
+        ];
 
         pkgs = import nixpkgs {
           inherit system overlays;
+          config = {
+            allowUnfree = true;
+            nvidia.acceptLicense = true;
+          };
         };
 
-        # Stable: default day-to-day toolchain.
-        stableToolchain = pkgs.rust-bin.stable.latest.default.override {
-          extensions = [ "rust-src" "rustfmt" "clippy" ];
-        };
+        nvidiaVersion = builtins.getEnv "NVIDIA_VERSION";
+        hasNvidia = nvidiaVersion != "";
 
-        # Nightly: for miri (unsafe-code auditor).
-        # Only miri requires nightly; everything else
-        # (build, test, clippy, fmt) lives on stable.
-        nightlyToolchain = pkgs.rust-bin.selectLatestNightlyWith (
-          toolchain:
-          toolchain.default.override {
-            extensions = [ "rust-src" "miri" "rustfmt" "clippy" ];
-          }
-        );
+        nixglPkgs = import "${nixgl}/default.nix" ({
+          inherit pkgs;
+        } // pkgs.lib.optionalAttrs hasNvidia {
+          inherit nvidiaVersion;
+          nvidiaHash = null;
+        });
 
-        common = [
-          pkgs.clang
-          pkgs.mold
-          pkgs.pkg-config
-          # iceoryx2 has C bindings; its build.rs runs bindgen,
-          # which needs libclang + the C++ runtime resolvable at
-          # link time.
-          pkgs.libclang.lib
-          pkgs.stdenv.cc.cc.lib
+        nixGLTarget =
+          if hasNvidia
+          then "${nixglPkgs.nixGLNvidia}/bin/nixGLNvidia-${nvidiaVersion}"
+          else "${nixglPkgs.nixGLIntel}/bin/nixGLIntel";
+        nixVulkanTarget =
+          if hasNvidia
+          then "${nixglPkgs.nixVulkanNvidia}/bin/nixVulkanNvidia-${nvidiaVersion}"
+          else "${nixglPkgs.nixVulkanIntel}/bin/nixVulkanIntel";
+
+        nixGLAlias = pkgs.runCommand "nixGL" { } ''
+          mkdir -p $out/bin
+          ln -s ${nixGLTarget} $out/bin/nixGL
+        '';
+        nixVulkanAlias = pkgs.runCommand "nixVulkan" { } ''
+          mkdir -p $out/bin
+          ln -s ${nixVulkanTarget} $out/bin/nixVulkan
+        '';
+
+        guiLibs = with pkgs; [
+          alsa-lib
+          udev
+          vulkan-loader
+          libxkbcommon
+          wayland
+          libx11
+          libxcursor
+          libxi
+          libxrandr
         ];
-
-        # Env vars exported into every devShell so bindgen finds
-        # libclang and the dynamic linker finds libstdc++.
-        shellEnv = {
-          LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-          LD_LIBRARY_PATH = nixpkgs.lib.makeLibraryPath [
-            pkgs.stdenv.cc.cc.lib
-            pkgs.libclang.lib
-          ];
-        };
       in
       {
-        devShells = {
-          # `nix develop`  →  stable shell, used for all normal work.
-          default = pkgs.mkShell ({
-            packages = [ stableToolchain ] ++ common;
-            RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
-          } // shellEnv);
+        devShells.default = pkgs.mkShell {
+          packages = [
+            (pkgs.rust-bin.stable.latest.default.override {
+              extensions = [ "rust-src" "rustfmt" "clippy" ];
+              targets = [ "wasm32-unknown-unknown" ];
+            })
+            pkgs.clang
+            pkgs.mold
+            pkgs.pkg-config
+            pkgs.rust-cbindgen
+            pkgs.trunk
+            pkgs.maturin
+            (pkgs.python3.withPackages (ps: with ps; [ fonttools brotli pip ]))
 
-          # `nix develop .#nightly`  →  adds miri.
-          # Use for:
-          #   cargo miri test --lib
-          nightly = pkgs.mkShell ({
-            packages = [
-              nightlyToolchain
-            ] ++ common;
-          } // shellEnv);
+            nixGLAlias
+            nixVulkanAlias
+            nixglPkgs.nixGLIntel
+            nixglPkgs.nixVulkanIntel
+          ] ++ pkgs.lib.optionals hasNvidia [
+            nixglPkgs.nixGLNvidia
+            nixglPkgs.nixVulkanNvidia
+          ] ++ guiLibs;
 
-          # `nix develop .#python`  →  adds Python + maturin so the
-          # `python` feature links and Python tests run.
-          # Build a wheel with:
-          #   maturin build --release --features python-extension
-          python = pkgs.mkShell ({
-            packages = [
-              stableToolchain
-              pkgs.python312
-              pkgs.python312Packages.pip
-              pkgs.maturin
-            ] ++ common;
-            RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
-          } // shellEnv);
+          RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath guiLibs;
+          WGPU_VALIDATION = "0";
+          WGPU_DEBUG = "0";
         };
       }
     );

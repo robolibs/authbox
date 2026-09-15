@@ -1,0 +1,15 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "authbox"
+version = "0.1.0"
+description = "Python bindings for authbox PKI and DID helpers"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+[tool.maturin]
+features = ["python"]
+module-name = "authbox"

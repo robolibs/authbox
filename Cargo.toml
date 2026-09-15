@@ -8,7 +8,9 @@ readme = "README.md"
 publish = false
 include = [
     "Cargo.toml",
+    "pyproject.toml",
     "README.md",
+    "include/**/*.h",
     "src/**/*.rs",
     "tests/**/*.rs",
     "examples/**/*.rs",
@@ -22,6 +24,8 @@ crate-type = ["rlib", "cdylib"]
 default = []
 tracing = []
 config = []
+python = ["dep:pyo3"]
+python-extension = ["python"]
 
 [dependencies]
 base64ct = { version = "1.8", features = ["alloc"] }
@@ -38,6 +42,10 @@ rsa = { version = "0.9", features = ["sha2"] }
 sec1 = { version = "0.7", features = ["alloc"] }
 serde_json = "1"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
+pyo3 = { version = "0.23", optional = true, features = [
+    "abi3-py39",
+    "extension-module",
+] }
 
 [dev-dependencies]
 blake2 = "0.10"
@@ -49,68 +57,68 @@ sha3 = "0.10"
 
 [[example]]
 name = "did_key_roundtrip"
-path = "examples/did/did_key_roundtrip.rs"
+path = "examples/rust/did/did_key_roundtrip.rs"
 
 [[example]]
 name = "did_jwk_roundtrip"
-path = "examples/did/did_jwk_roundtrip.rs"
+path = "examples/rust/did/did_jwk_roundtrip.rs"
 
 [[example]]
 name = "did_web_from_x509"
-path = "examples/did/did_web_from_x509.rs"
+path = "examples/rust/did/did_web_from_x509.rs"
 
 [[example]]
 name = "did_web_resolve_live"
-path = "examples/did/did_web_resolve_live.rs"
+path = "examples/rust/did/did_web_resolve_live.rs"
 
 [[example]]
 name = "did_rpc_loopback"
-path = "examples/did/did_rpc_loopback.rs"
+path = "examples/rust/did/did_rpc_loopback.rs"
 
 [[example]]
 name = "cert_generate_ca"
-path = "examples/pki/cert_generate_ca.rs"
+path = "examples/rust/pki/cert_generate_ca.rs"
 
 [[example]]
 name = "cert_generate_self_signed"
-path = "examples/pki/cert_generate_self_signed.rs"
+path = "examples/rust/pki/cert_generate_self_signed.rs"
 
 [[example]]
 name = "cert_parse_and_print"
-path = "examples/pki/cert_parse_and_print.rs"
+path = "examples/rust/pki/cert_parse_and_print.rs"
 
 [[example]]
 name = "cert_sign_csr"
-path = "examples/pki/cert_sign_csr.rs"
+path = "examples/rust/pki/cert_sign_csr.rs"
 
 [[example]]
 name = "cert_verify_chain"
-path = "examples/pki/cert_verify_chain.rs"
+path = "examples/rust/pki/cert_verify_chain.rs"
 
 [[example]]
 name = "csr_generate"
-path = "examples/pki/csr_generate.rs"
+path = "examples/rust/pki/csr_generate.rs"
 
 [[example]]
 name = "enterprise"
-path = "examples/pki/enterprise.rs"
+path = "examples/rust/pki/enterprise.rs"
 
 [[example]]
 name = "simple_example"
-path = "examples/pki/simple_example.rs"
+path = "examples/rust/pki/simple_example.rs"
 
 [[example]]
 name = "simple_verify_client"
-path = "examples/pki/simple_verify_client.rs"
+path = "examples/rust/pki/simple_verify_client.rs"
 
 [[example]]
 name = "simple_verify_server"
-path = "examples/pki/simple_verify_server.rs"
+path = "examples/rust/pki/simple_verify_server.rs"
 
 [[example]]
 name = "trust_store_usage"
-path = "examples/pki/trust_store_usage.rs"
+path = "examples/rust/pki/trust_store_usage.rs"
 
 [[example]]
 name = "verify_direct"
-path = "examples/pki/verify_direct.rs"
+path = "examples/rust/pki/verify_direct.rs"
