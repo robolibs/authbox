@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PrivacyRisk"],"fn":["check_correlation_risks","contains_address_pattern","contains_email_pattern","contains_name_pattern","contains_phone_pattern","detect_key_reuse","format_concerns","get_max_risk","is_safe_for_immutable_storage","scan_did_for_pii","scan_document","scan_for_pii"],"struct":["PrivacyConcern"]};

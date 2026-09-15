@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MULTICODEC_ED25519_PUB","MULTICODEC_X25519_PUB"],"fn":["base58_value","base58btc_decode","base58btc_encode","base64url_decode","base64url_encode","base64url_encode_key","canonicalize_jwk_json","find_object_field","has_reference","json_value_to_string","parse_jwk","parse_required_string_field","parse_string_array"]};

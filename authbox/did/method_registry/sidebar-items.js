@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["DocumentMetadata","MethodRegistry","Resolution","ResolutionMetadata"],"type":["MethodHandler"]};

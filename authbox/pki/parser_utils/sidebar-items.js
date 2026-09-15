@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["copy_span","parse_algorithm_identifier","parse_certificate_time_choice","parse_explicit_extensions","parse_extensions","parse_name","parse_spki","parse_subject_public_key_info","parse_time_choice"],"struct":["DerCursor"]};

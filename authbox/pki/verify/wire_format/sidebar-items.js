@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAGIC","VERSION"],"enum":["MessageType","ServingStatus","VerifyStatus"],"fn":["deserialize","response_signature_message","serialize"],"struct":["BatchVerifyRequest","BatchVerifyResponse","CertificateData","HealthCheckRequest","HealthCheckResponse","RequestFlags","Serializer","VerifyRequest","VerifyResponse"],"trait":["WireMessage"]};

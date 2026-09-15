@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["create_dns_handler","get_dns_query_domain","parse_did_dns","resolve_did_dns_document_json","resolve_did_dns_document_json_with_lookup"],"struct":["DnsResolveOptions","DnsTxtRecord"],"type":["DnsLookupFn"]};

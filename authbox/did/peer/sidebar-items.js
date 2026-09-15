@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PeerElementType"],"fn":["decode_peer_key","parse_did_peer","resolve_did_peer_document_json"],"struct":["PeerElement"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CertificateFormat"],"struct":["Certificate","CertificateResult"],"type":["CertificateBoolResult","CertificateChainResult","CertificateParseResult","CertificateSignatureResult"]};

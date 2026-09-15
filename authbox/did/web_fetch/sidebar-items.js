@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["fetch_did_document_http11","make_web_http11_resolver","make_web_http11_resolver_with_options","make_web_http_fetcher","make_web_http_fetcher_with_options","parse_http_url"],"mod":["detail"],"struct":["ParsedUrl","WebFetchOptions"]};

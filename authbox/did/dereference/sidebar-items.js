@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DereferencedResource"],"fn":["dereference","dereference_with_options","get_document","get_service","get_verification_method","is_document","is_service","is_verification_method"],"struct":["DereferenceOptions","DereferenceResult"]};

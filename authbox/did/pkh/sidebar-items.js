@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["get_blockchain_account_id","get_chain_name","parse_did_pkh","resolve_did_pkh_document_json","verify_ethereum_signature"],"struct":["PkhComponents"]};

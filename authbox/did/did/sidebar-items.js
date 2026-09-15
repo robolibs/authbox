@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["did_web_document_url","is_did_uri","is_hex_char","is_method_char","is_method_id_char","parse","parse_url","percent_decode"],"struct":["Did","DidUrl"]};

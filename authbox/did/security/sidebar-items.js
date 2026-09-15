@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CryptographicStrength"],"fn":["evaluate_jwk_curve","evaluate_key_type","evaluate_verification_method","format_concerns","get_cryptography_summary","scan_document","uses_recommended_cryptography"],"struct":["SecurityConcern"]};
