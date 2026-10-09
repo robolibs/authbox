@@ -1,7 +1,7 @@
-use keylock::generate_ed25519_keypair;
 use authbox::pki::{
     Certificate, CertificateBuilder, DerTime, DistinguishedName, Verifier, VerifyStatus,
 };
+use keylock::generate_ed25519_keypair;
 
 fn example_time(year: i32) -> DerTime {
     DerTime {

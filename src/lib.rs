@@ -10,7 +10,11 @@ pub mod json;
 pub mod io;
 
 pub mod did;
+pub mod ffi;
 pub mod pki;
+
+#[cfg(feature = "python")]
+pub mod python;
 
 /// Compatibility namespace mirroring the C++ primary `authbox::pik` namespace.
 pub mod pik {
