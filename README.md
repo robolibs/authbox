@@ -7,7 +7,7 @@ and an in-process certificate verification service.
 
 **Crypto boundary.** Every cryptographic primitive — keygen, signing, verifying,
 hashing, AEAD, RNG — lives in the sibling
-[`keylock`](https://codeberg.org/robolibs/keylock) crate. authbox itself
+[`keylock`](https://github.com/robolibs/keylock) crate. authbox itself
 contains only PKI / DID / JSON framing. authbox does **not** re-export keylock;
 consumers must add keylock as their own direct dependency and import primitives
 from it directly: `keylock::generate_*_keypair()` for keys, `keylock::keccak256`
@@ -33,11 +33,11 @@ The C++ tree stays checked in under `xtra/authbox/` as the translation source.
 
 ```toml
 [dependencies]
-authbox = { git = "https://codeberg.org/robolibs/authbox.git" }
-keylock = { git = "https://codeberg.org/robolibs/keylock.git", tag = "0.1.0" }
+authbox = { git = "https://github.com/robolibs/authbox" }
+keylock = { git = "https://github.com/robolibs/keylock", tag = "0.1.0" }
 ```
 
-authbox itself pins keylock to the same codeberg tag, so the two crates always
+authbox itself pins keylock to the same tag, so the two crates always
 resolve to one shared version of every primitive.
 
 ### Generate and sign a self-signed Ed25519 certificate
